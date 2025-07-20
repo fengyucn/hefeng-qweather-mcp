@@ -38,7 +38,7 @@ vscode MCP 配置文件：
 
 ## 前置要求
 
-- Python >= 3.13
+- Python >= 3.11
 - OpenSSL (用于生成密钥对)
 - 和风天气开发者账号
 
