@@ -1,6 +1,6 @@
 [project]
 name = "hefeng-weather-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "和风天气 MCP 服务 - 基于 Model Context Protocol 的天气数据查询服务"
 readme = "README.md"
 license = { text = "MIT" }
