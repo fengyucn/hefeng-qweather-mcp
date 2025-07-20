@@ -22,6 +22,21 @@ uv tool install hefeng-weather-mcp
 pip install hefeng-weather-mcp
 ```
 
+## 使用
+
+```env
+HEFENG_API_HOST=devapi.qweather.com
+HEFENG_PROJECT_ID=你的项目ID
+HEFENG_KEY_ID=你的凭据ID
+HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
+```
+
+配置环境变量后运行程序
+
+```bash
+hefeng-weather-mcp
+```
+
 vscode MCP 配置文件：
 
 ```json
