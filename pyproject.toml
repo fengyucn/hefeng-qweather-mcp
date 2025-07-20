@@ -1,0 +1,47 @@
+[project]
+name = "hefeng-weather-mcp"
+version = "0.1.0"
+description = "和风天气 MCP 服务 - 基于 Model Context Protocol 的天气数据查询服务"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "yeisme", email = "yefun2004@gmail.com" }
+]
+keywords = ["weather", "mcp", "hefeng", "qweather", "climate"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=45.0.5",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.12.0",
+    "pyjwt>=2.10.1",
+    "python-dotenv>=1.1.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/yeisme/hefeng-weather-mcp"
+Repository = "https://github.com/yeisme/hefeng-weather-mcp.git"
+Issues = "https://github.com/yeisme/hefeng-weather-mcp/issues"
+Documentation = "https://github.com/yeisme/hefeng-weather-mcp#readme"
+
+[project.scripts]
+hefeng-weather-mcp = "hefeng_weather_mcp.main:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.0",
+    "ruff>=0.12.4",
+]
