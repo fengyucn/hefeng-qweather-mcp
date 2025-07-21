@@ -1,8 +1,17 @@
 {
 	"servers": {
-		"hefeng-weather-mcp": {
+		"hefeng-weather-mcp-http": {
 			"url": "http://127.0.0.1:8000/mcp",
 			"type": "http"
+		},
+		"hefeng-weather-mcp-stdio": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": [
+				"hefeng-weather-mcp",
+				"stdio"
+			],
+			"envFile": "${workspaceFolder}/.env"
 		}
 	},
 	"inputs": []

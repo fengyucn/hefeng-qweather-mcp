@@ -15,8 +15,8 @@
 - HEFENG_KEY_ID: 密钥ID
 - HEFENG_PRIVATE_KEY_PATH: 私钥文件路径
 
-Author: 你的名字
-Version: 0.1.0
+Author: yeisme
+Version: 0.1.3
 License: MIT
 """
 
@@ -28,6 +28,7 @@ import os
 import time
 import jwt
 from typing import Optional, Dict, Any
+import typer
 
 # 配置日志
 logging.basicConfig(
@@ -40,6 +41,8 @@ load_dotenv()
 
 # 初始化MCP服务
 mcp = FastMCP("hefeng_weather_mcp")
+app = typer.Typer()
+
 
 # API配置常量
 JWT_EXPIRY_SECONDS = 900  # JWT令牌过期时间（15分钟）
@@ -261,7 +264,8 @@ def get_warning(city: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def main() -> None:
+@app.command()
+def http() -> None:
     """
     命令行入口函数。
 
@@ -279,6 +283,33 @@ def main() -> None:
         logger.error(f"服务启动失败: {e}")
         raise
 
+@app.command()
+def stdio() -> None:
+    """
+    命令行入口函数。
+
+    用于支持通过 pip 安装后的命令行调用。
+    """
+    try:
+        logger.info("正在启动和风天气MCP服务...")
+        logger.info(f"API主机: {api_host}")
+        logger.info(f"项目ID: {project_id}")
+        logger.info("服务启动成功，等待连接...")
+        mcp.run(transport="stdio")
+    except KeyboardInterrupt:
+        logger.info("服务被用户中断")
+    except Exception as e:
+        logger.error(f"服务启动失败: {e}")
+        raise
+
+
+def main() -> None:
+    """
+    主函数入口。
+
+    解析命令行参数并启动相应的MCP服务。
+    """
+    app()
 
 if __name__ == "__main__":
     """

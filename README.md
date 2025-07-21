@@ -22,8 +22,6 @@ uv tool install hefeng-weather-mcp
 pip install hefeng-weather-mcp
 ```
 
-## 使用
-
 ```env
 HEFENG_API_HOST=devapi.qweather.com
 HEFENG_PROJECT_ID=你的项目ID
@@ -31,10 +29,14 @@ HEFENG_KEY_ID=你的凭据ID
 HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
 ```
 
+## 使用
+
+### streamable-http 模式
+
 配置环境变量后运行程序
 
 ```bash
-hefeng-weather-mcp
+hefeng-weather-mcp http
 ```
 
 vscode MCP 配置文件：
@@ -45,6 +47,43 @@ vscode MCP 配置文件：
     "hefeng-weather-mcp": {
       "url": "http://127.0.0.1:8000/mcp",
       "type": "http"
+    }
+  },
+  "inputs": []
+}
+```
+
+### stdio 模式
+
+安装并配置环境变量后运行程序
+
+```bash
+hefeng-weather-mcp stdio
+```
+
+vscode MCP 配置文件：
+
+```json
+{
+  "servers": {
+    "hefeng-weather-mcp-stdio": {
+      "type": "stdio",
+      "command": "hefeng-weather-mcp stdio"
+    }
+  },
+  "inputs": []
+}
+```
+
+或者使用 `uv` 命令：
+
+```json
+{
+  "servers": {
+    "hefeng-weather-mcp-uv": {
+      "type": "stdio",
+      "command": "uvx hefeng-weather-mcp stdio",
+      "envFile": "${workspaceFolder}/.env"
     }
   },
   "inputs": []
@@ -158,17 +197,6 @@ MIT License
 1. 查看现有的 Issue，避免重复提交
 2. 使用清晰的标题和详细的描述
 3. 如果是 bug 报告，请包含重现步骤和环境信息
-
-## 更新日志
-
-### v0.1.0 (2025-07-20)
-
-- ✨ 初始版本发布
-- 🌤️ 支持天气预报查询
-- ⚠️ 支持气象预警查询
-- ☀️ 支持太阳辐射预报查询
-- 🔐 EdDSA + JWT 安全认证
-- 📝 完整的错误处理和日志记录
 
 ## 相关链接
 
