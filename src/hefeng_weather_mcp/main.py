@@ -53,22 +53,25 @@ DEFAULT_SOLAR_HOURS = 24  # 默认太阳辐射预报小时数
 api_host = os.environ.get("HEFENG_API_HOST")
 project_id = os.environ.get("HEFENG_PROJECT_ID")
 key_id = os.environ.get("HEFENG_KEY_ID")
+
 private_key_path = os.environ.get("HEFENG_PRIVATE_KEY_PATH")
+# 如果设置了私钥文件路径，则读取文件内容
+if private_key_path:
+    try:
+        with open(private_key_path, "rb") as f:
+            private_key = f.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"私钥文件未找到: {private_key_path}")
+    except Exception as e:
+        raise Exception(f"读取私钥文件失败: {e}")
+else:
+    private_key = os.environ.get("HEFENG_PRIVATE_KEY")
+    if private_key:
+        private_key = private_key.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
 
 # 验证必需的环境变量
-if not all([api_host, project_id, key_id, private_key_path]):
-    raise ValueError(
-        "缺少必需的环境变量: HEFENG_API_HOST, HEFENG_PROJECT_ID, HEFENG_KEY_ID, HEFENG_PRIVATE_KEY_PATH"
-    )
-
-# 读取私钥文件
-try:
-    with open(private_key_path, "rb") as f:  # type: ignore
-        private_key = f.read()
-except FileNotFoundError:
-    raise FileNotFoundError(f"私钥文件未找到: {private_key_path}")
-except Exception as e:
-    raise Exception(f"读取私钥文件失败: {e}")
+if not api_host or not project_id or not key_id or not private_key:
+    raise ValueError("必需的环境变量未设置，请检查配置。")
 
 # 生成JWT令牌
 payload = {
@@ -283,6 +286,7 @@ def http() -> None:
         logger.error(f"服务启动失败: {e}")
         raise
 
+
 @app.command()
 def stdio() -> None:
     """
@@ -310,6 +314,7 @@ def main() -> None:
     解析命令行参数并启动相应的MCP服务。
     """
     app()
+
 
 if __name__ == "__main__":
     """

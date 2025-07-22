@@ -27,6 +27,9 @@ HEFENG_API_HOST=devapi.qweather.com
 HEFENG_PROJECT_ID=你的项目ID
 HEFENG_KEY_ID=你的凭据ID
 HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
+
+# 可选：直接加载密钥内容，方便远程部署
+HEFENG_PRIVATE_KEY=
 ```
 
 ## 使用
