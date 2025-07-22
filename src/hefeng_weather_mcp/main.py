@@ -1,20 +1,4 @@
 """
-和风天气 MCP 服务
-
-这是一个基于 Model Context Protocol (MCP) 的和风天气服务，提供天气预报、气象预警、
-太阳辐射等多种气象数据查询功能。
-
-功能特性:
-- 获取未来三天天气预报
-- 查询当前气象预警信息
-- 获取太阳辐射逐小时预报
-
-环境变量配置:
-- HEFENG_API_HOST: 和风天气API主机地址
-- HEFENG_PROJECT_ID: 项目ID
-- HEFENG_KEY_ID: 密钥ID
-- HEFENG_PRIVATE_KEY_PATH: 私钥文件路径
-
 Author: yeisme
 Version: 0.1.3
 License: MIT
@@ -92,7 +76,7 @@ auth_header = {
 }
 
 
-def _get_city_location(city: str) -> Optional[str]:
+def _get_city_location(city: str, location: bool = False) -> Optional[str]:
     """
     根据城市名称获取LocationID。
 
@@ -119,6 +103,19 @@ def _get_city_location(city: str) -> Optional[str]:
         data = response.json()
         if data and data.get("location") and len(data["location"]) > 0:
             location_id = data["location"][0]["id"]
+            if location:
+                # 如果需要返回经纬度信息
+                lat_value = float(data["location"][0]["lat"])
+                lon_value = float(data["location"][0]["lon"])
+                formatted_lat = f"{lat_value:.2f}"
+                formatted_lon = f"{lon_value:.2f}"
+
+                location_lat_lon = formatted_lat + "," + formatted_lon
+                logger.info(
+                    f"成功获取城市 '{city}' 的经纬度: {location_lat_lon} (lat: {formatted_lat}, lon: {formatted_lon})"
+                )
+
+                return location_lat_lon
             logger.info(f"成功获取城市 '{city}' 的LocationID: {location_id}")
             return location_id
         else:
@@ -145,22 +142,6 @@ def get_weather(city: str) -> Optional[Dict[str, Any]]:
 
     Returns:
         包含未来三天天气预报的JSON数据，如果查询失败则返回None
-
-    Examples:
-        >>> get_weather("北京")
-        {
-            "code": "200",
-            "updateTime": "2023-07-20T14:30+08:00",
-            "daily": [
-                {
-                    "fxDate": "2023-07-20",
-                    "tempMax": "32",
-                    "tempMin": "24",
-                    "textDay": "晴",
-                    ...
-                }
-            ]
-        }
     """
     if not city or not city.strip():
         logger.error("城市名称不能为空")
@@ -267,6 +248,127 @@ def get_warning(city: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+@mcp.tool()
+def get_indices(
+    city: str,
+    days: str = "1d",
+    index_types: str = "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",
+) -> Optional[Dict[str, Any]]:
+    """
+    获取指定城市的天气生活指数预报。
+
+    提供详细的生活指数信息，包括舒适度、洗车、穿衣、感冒、运动、旅游、紫外线等指数。
+
+    Args:
+        city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
+        days: 预报天数，支持 "1d"（1天）或 "3d"（3天），默认为 "1d"
+        index_types: 生活指数类型ID，多个类型用英文逗号分隔。默认获取所有指数。
+                    常用指数ID：
+                    1-运动指数, 2-洗车指数, 3-穿衣指数, 4-感冒指数, 5-紫外线指数,
+                    6-旅游指数, 7-花粉过敏指数, 8-舒适度指数, 9-交通指数, 10-防晒指数,
+                    11-化妆指数, 12-空调开启指数, 13-晾晒指数, 14-钓鱼指数, 15-太阳镜指数,
+                    16-空气污染扩散条件指数
+
+    Returns:
+        包含天气生活指数预报的JSON数据，如果查询失败则返回None
+    """
+    if not city or not city.strip():
+        logger.error("城市名称不能为空")
+        return None
+
+    city = city.strip()
+
+    # 验证days参数
+    if days not in ["1d", "3d"]:
+        logger.error(f"无效的预报天数参数: {days}，支持的值: 1d, 3d")
+        return None
+
+    # 验证index_types参数
+    if not index_types or not index_types.strip():
+        logger.error("指数类型参数不能为空")
+        return None
+
+    index_types = index_types.strip()
+
+    # 获取城市LocationID
+    location_id = _get_city_location(city)
+    if not location_id:
+        logger.error(f"无法获取城市 '{city}' 的位置信息")
+        return None
+
+    url = f"https://{api_host}/v7/indices/{days}"
+    params = {"location": location_id, "type": index_types, "lang": "zh"}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取生活指数数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        indices_data = response.json()
+        logger.info(f"成功获取城市 '{city}' 的生活指数预报数据")
+        return indices_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求生活指数数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取生活指数数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_air_quality(city: str) -> Optional[Dict[str, Any]]:
+    """
+    获取指定地点的实时空气质量数据。
+
+    提供精度为1x1公里的实时空气质量信息，包括AQI指数、污染物浓度、健康建议等。
+
+    Args:
+        city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
+
+    Returns:
+        包含实时空气质量数据的JSON数据，如果查询失败则返回None
+    """
+    location_lat_lon = _get_city_location(city, location=True)
+    if not location_lat_lon:
+        logger.error(f"无法获取城市 '{city}' 的位置信息")
+        return None
+
+    # 分割经纬度
+    try:
+        lat, lon = location_lat_lon.split(",")
+    except ValueError:
+        logger.error(f"无法解析城市 '{city}' 的经纬度信息: {location_lat_lon}")
+        return None
+
+    url = f"https://{api_host}/airquality/v1/current/{lat}/{lon}"
+    params = {"lang": "zh"}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取空气质量数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        air_quality_data = response.json()
+        logger.info(f"成功获取城市 '{city}' 的空气质量数据")
+        return air_quality_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求空气质量数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取空气质量数据时发生未知错误: {e}")
+        return None
+
+
 @app.command()
 def http() -> None:
     """
@@ -323,4 +425,4 @@ if __name__ == "__main__":
     启动和风天气MCP服务，使用streamable-http传输协议。
     确保在运行前已正确配置所有必需的环境变量。
     """
-    main()
+    _get_city_location("海淀", location=True)  # 测试获取海淀区的经纬度
