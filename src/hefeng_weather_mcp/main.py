@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 import jwt
 from typing import Optional, Dict, Any
 import typer
@@ -55,7 +56,7 @@ else:
 
 # 验证必需的环境变量
 if not api_host or not project_id or not key_id or not private_key:
-    raise ValueError("必需的环境变量未设置，请检查配置。")
+    raise ValueError("必需的环境变量未设置，请检查配置")
 
 # 生成JWT令牌
 payload = {
@@ -78,7 +79,7 @@ auth_header = {
 
 def _get_city_location(city: str, location: bool = False) -> Optional[str]:
     """
-    根据城市名称获取LocationID。
+    根据城市名称获取LocationID
 
     Args:
         city: 城市名称，如 '北京'、'上海' 等
@@ -133,9 +134,9 @@ def _get_city_location(city: str, location: bool = False) -> Optional[str]:
 @mcp.tool()
 def get_weather(city: str) -> Optional[Dict[str, Any]]:
     """
-    获取指定城市未来三天的天气预报。
+    获取指定城市未来三天的天气预报
 
-    提供详细的天气信息，包括温度、湿度、风力、降水等数据。
+    提供详细的天气信息，包括温度、湿度、风力、降水等数据
 
     Args:
         city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
@@ -183,9 +184,9 @@ def get_weather(city: str) -> Optional[Dict[str, Any]]:
 @mcp.tool()
 def get_warning(city: str) -> Optional[Dict[str, Any]]:
     """
-    获取指定城市的当前气象预警信息。
+    获取指定城市的当前气象预警信息
 
-    提供官方发布的各类气象灾害预警，包括台风、暴雨、高温、寒潮等预警信息。
+    提供官方发布的各类气象灾害预警，包括台风、暴雨、高温、寒潮等预警信息
 
     Args:
         city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
@@ -255,14 +256,14 @@ def get_indices(
     index_types: str = "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",
 ) -> Optional[Dict[str, Any]]:
     """
-    获取指定城市的天气生活指数预报。
+    获取指定城市的天气生活指数预报
 
-    提供详细的生活指数信息，包括舒适度、洗车、穿衣、感冒、运动、旅游、紫外线等指数。
+    提供详细的生活指数信息，包括舒适度、洗车、穿衣、感冒、运动、旅游、紫外线等指数
 
     Args:
         city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
         days: 预报天数，支持 "1d"（1天）或 "3d"（3天），默认为 "1d"
-        index_types: 生活指数类型ID，多个类型用英文逗号分隔。默认获取所有指数。
+        index_types: 生活指数类型ID，多个类型用英文逗号分隔默认获取所有指数
                     常用指数ID：
                     1-运动指数, 2-洗车指数, 3-穿衣指数, 4-感冒指数, 5-紫外线指数,
                     6-旅游指数, 7-花粉过敏指数, 8-舒适度指数, 9-交通指数, 10-防晒指数,
@@ -323,9 +324,9 @@ def get_indices(
 @mcp.tool()
 def get_air_quality(city: str) -> Optional[Dict[str, Any]]:
     """
-    获取指定地点的实时空气质量数据。
+    获取指定地点的实时空气质量数据
 
-    提供精度为1x1公里的实时空气质量信息，包括AQI指数、污染物浓度、健康建议等。
+    提供精度为1x1公里的实时空气质量信息，包括AQI指数、污染物浓度、健康建议等
 
     Args:
         city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
@@ -369,12 +370,326 @@ def get_air_quality(city: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+@mcp.tool()
+def get_air_quality_history(
+    city: str, days: int = 10, lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取最近 N 天（最多10天，不包含今天）的空气质量历史再分析数据
+
+    Args:
+        city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
+        days: 要获取的天数，必须在 1 到 10 之间（默认 10）
+        lang: 多语言设置，默认中文 'zh'
+
+    Returns:
+        字典，键为 yyyyMMdd 日期，值为接口返回的 JSON 数据或错误信息；查询失败返回 None
+    """
+    if not city or not city.strip():
+        logger.error("城市名称不能为空")
+        return None
+
+    if not isinstance(days, int) or days < 1 or days > 10:
+        logger.error("参数 days 必须为整数，且范围为 1 到 10")
+        return None
+
+    city = city.strip()
+
+    # 获取城市 LocationID（历史空气质量接口只支持 LocationID）
+    location_id = _get_city_location(city)
+    if not location_id:
+        logger.error(f"无法获取城市 '{city}' 的位置信息")
+        return None
+
+    results: Dict[str, Any] = {}
+
+    # 以北京时间为基准，生成从 today-days 到 yesterday 的日期列表
+    # 使用时区感知的 UTC 时间以避免弃用警告
+    beijing_now = datetime.now(tz=timezone.utc) + timedelta(hours=8)
+    for offset in range(days, 0, -1):
+        target_date = (beijing_now - timedelta(days=offset)).strftime("%Y%m%d")
+
+        url = f"https://{api_host}/v7/historical/air"
+        params = {"location": location_id, "date": target_date, "lang": lang}
+
+        try:
+            response = httpx.get(url, headers=auth_header, params=params)
+
+            if response.status_code != 200:
+                logger.error(
+                    f"获取历史空气质量数据失败 ({target_date}) - 状态码: {response.status_code}, 响应: {response.text}"
+                )
+                results[target_date] = {
+                    "error": response.text,
+                    "status_code": response.status_code,
+                }
+            else:
+                results[target_date] = response.json()
+
+            # 小延迟以降低并发请求压力
+            time.sleep(0.1)
+
+        except httpx.RequestError as e:
+            logger.error(f"请求历史空气质量数据时发生网络错误 ({target_date}): {e}")
+            results[target_date] = {"error": str(e)}
+        except Exception as e:
+            logger.error(f"获取历史空气质量数据时发生未知错误 ({target_date}): {e}")
+            results[target_date] = {"error": str(e)}
+
+    logger.info(f"成功获取城市 '{city}' 的历史空气质量数据（最近 {days} 天）")
+    return results
+
+
+@mcp.tool()
+def get_weather_history(
+    *,
+    location: Optional[str] = None,
+    city: Optional[str] = None,
+    days: int = 10,
+    lang: str = "zh",
+    unit: str = "m",
+) -> Optional[Dict[str, Any]]:
+    """
+    获取最近 N 天（最多10天，不包含今天）的历史再分析天气数据（/v7/historical/weather）
+
+    Notes:
+        - 接口只支持 LocationID 查询（即必须先解析城市为 LocationID）
+        - date 参数格式为 yyyyMMdd，例如 20251230
+        - 最多只能查询最近 10 天（不包含今天），days 范围为 1 到 10
+
+    Args:
+        city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
+        days: 要获取的天数，必须在 1 到 10 之间（默认 10）
+        lang: 多语言设置，默认中文 'zh'
+        unit: 单位，"m" 公制（默认）或 "i" 英制
+
+    Returns:
+        字典，键为 yyyyMMdd 日期，值为接口返回的 JSON 数据或错误信息；查询失败返回 None
+    """
+    # 接受 location（LocationID 或 "lon,lat"）或 city 两种方式之一
+    if (not location or not str(location).strip()) and (not city or not city.strip()):
+        logger.error("必须提供 location 或 city 其中之一")
+        return None
+
+    if not isinstance(days, int) or days < 1 or days > 10:
+        logger.error("参数 days 必须为整数，且范围为 1 到 10")
+        return None
+
+    if unit not in {"m", "i"}:
+        logger.error("无效的单位参数 unit: 应为 'm' 或 'i'")
+        return None
+
+    # 解析并准备 location_id（历史天气接口只支持 LocationID）
+    location_id: Optional[str] = None
+
+    loc_value = (
+        location.strip() if isinstance(location, str) and location.strip() else None
+    )
+    if loc_value:
+        # 如果传入的是经纬度（含逗号），尝试通过 Geo API 解析为 LocationID
+        if "," in loc_value:
+            resolved = _get_city_location(loc_value)
+            if not resolved:
+                logger.error(f"无法通过经纬度解析 LocationID: {loc_value}")
+                return None
+            location_id = resolved
+        else:
+            # 假定传入的是 LocationID（如 101010100），直接使用
+            location_id = loc_value
+    else:
+        # 使用 city 名称解析 LocationID
+        city = city.strip() if city else ""
+        location_id = _get_city_location(city)
+        if not location_id:
+            logger.error(f"无法获取城市 '{city}' 的位置信息")
+            return None
+
+    results: Dict[str, Any] = {}
+
+    # 以北京时间为基准，生成从 today-days 到 yesterday 的日期列表
+    # 使用时区感知的 UTC 时间以避免弃用警告
+    beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
+    for offset in range(days, 0, -1):
+        target_date = (beijing_now - timedelta(days=offset)).strftime("%Y%m%d")
+
+        url = f"https://{api_host}/v7/historical/weather"
+        params = {
+            "location": location_id,
+            "date": target_date,
+            "lang": lang,
+            "unit": unit,
+        }
+
+        try:
+            response = httpx.get(url, headers=auth_header, params=params)
+
+            if response.status_code != 200:
+                logger.error(
+                    f"获取历史天气数据失败 ({target_date}) - 状态码: {response.status_code}, 响应: {response.text}"
+                )
+                results[target_date] = {
+                    "error": response.text,
+                    "status_code": response.status_code,
+                }
+            else:
+                results[target_date] = response.json()
+
+            # 小延迟以降低并发请求压力
+            time.sleep(0.1)
+
+        except httpx.RequestError as e:
+            logger.error(f"请求历史天气数据时发生网络错误 ({target_date}): {e}")
+            results[target_date] = {"error": str(e)}
+        except Exception as e:
+            logger.error(f"获取历史天气数据时发生未知错误 ({target_date}): {e}")
+            results[target_date] = {"error": str(e)}
+
+    logger.info(f"成功获取城市 '{city}' 的历史天气数据（最近 {days} 天）")
+    return results
+
+
+@mcp.tool()
+def get_hourly_weather(
+    hours: str = "24h",
+    location: Optional[str] = None,
+    city: Optional[str] = None,
+    lang: str = "zh",
+    unit: str = "m",
+) -> Optional[Dict[str, Any]]:
+    """
+    获取指定地点未来 24-168 小时的逐小时天气预报
+
+    支持三种时长：24h、72h、168h可通过 LocationID 或 "lon,lat" 坐标，或传入城市名（自动解析 LocationID）
+
+    Args:
+        hours: 预报小时数，支持 "24h"、"72h"、"168h"，默认 "24h"
+        location: 位置标识，支持 LocationID 或 "经度,纬度"（小数点后最多两位）
+        city: 城市名称（当未提供 location 时使用此参数自动解析 LocationID）
+        lang: 多语言代码，默认 "zh"
+        unit: 单位，"m" 公制（默认）或 "i" 英制
+
+    Returns:
+        包含逐小时天气预报的 JSON 数据，如果失败返回 None
+    """
+    # 校验 hours 参数
+    valid_hours = {"24h", "72h", "168h"}
+    if hours not in valid_hours:
+        logger.error(
+            f"无效的 hours 参数: {hours}，支持的值: {', '.join(sorted(valid_hours))}"
+        )
+        return None
+
+    # 校验 unit 参数
+    if unit not in {"m", "i"}:
+        logger.error(f"无效的单位参数 unit: {unit}，支持的值: m, i")
+        return None
+
+    # 准备 location 值
+    loc_value: Optional[str] = location.strip() if isinstance(location, str) else None
+    if not loc_value:
+        if not city or not city.strip():
+            logger.error("必须提供 location 或 city 其中之一")
+            return None
+        # 通过城市名解析 LocationID
+        loc_value = _get_city_location(city.strip())
+        if not loc_value:
+            logger.error(f"无法获取城市 '{city}' 的位置信息")
+            return None
+
+    url = f"https://{api_host}/v7/weather/{hours}"
+    params = {"location": loc_value, "lang": lang, "unit": unit}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取逐小时天气数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        hourly_data = response.json()
+        who = city or loc_value
+        logger.info(f"成功获取 '{who}' 的逐小时天气预报数据（{hours}）")
+        return hourly_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求逐小时天气数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取逐小时天气数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_weather_now(
+    location: Optional[str] = None,
+    city: Optional[str] = None,
+    lang: str = "zh",
+    unit: str = "m",
+) -> Optional[Dict[str, Any]]:
+    """
+    获取实时（近实时）天气数据（/v7/weather/now）
+
+    包含实时温度、体感温度、风力风向、相对湿度、大气压强、降水量、能见度、露点温度、云量等
+    注意：实况数据通常较真实时间有 5-20 分钟延迟，请以返回数据中的 obsTime 为准
+
+    Args:
+        location: 地区 LocationID 或 "经度,纬度"（十进制，最多两位小数）
+        city: 城市名称（当未提供 location 时使用此参数自动解析 LocationID）
+        lang: 多语言代码，默认 "zh"
+        unit: 单位，"m" 公制（默认）或 "i" 英制
+
+    Returns:
+        包含实况天气的 JSON 数据，如果失败返回 None
+    """
+    # 校验 unit 参数
+    if unit not in {"m", "i"}:
+        logger.error(f"无效的单位参数 unit: {unit}，支持的值: m, i")
+        return None
+
+    # 准备 location 值
+    loc_value: Optional[str] = location.strip() if isinstance(location, str) else None
+    if not loc_value:
+        if not city or not city.strip():
+            logger.error("必须提供 location 或 city 其中之一")
+            return None
+        # 通过城市名解析 LocationID
+        loc_value = _get_city_location(city.strip())
+        if not loc_value:
+            logger.error(f"无法获取城市 '{city}' 的位置信息")
+            return None
+
+    url = f"https://{api_host}/v7/weather/now"
+    params = {"location": loc_value, "lang": lang, "unit": unit}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+        if response.status_code != 200:
+            logger.error(
+                f"获取实况天气数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        now_data = response.json()
+        who = city or loc_value
+        logger.info(f"成功获取 '{who}' 的实况天气数据")
+        return now_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求实况天气数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取实况天气数据时发生未知错误: {e}")
+        return None
+
+
 @app.command()
 def http() -> None:
     """
-    命令行入口函数。
+    命令行入口函数
 
-    用于支持通过 pip 安装后的命令行调用。
+    用于支持通过 pip 安装后的命令行调用
     """
     try:
         logger.info("正在启动和风天气MCP服务...")
@@ -392,9 +707,9 @@ def http() -> None:
 @app.command()
 def stdio() -> None:
     """
-    命令行入口函数。
+    命令行入口函数
 
-    用于支持通过 pip 安装后的命令行调用。
+    用于支持通过 pip 安装后的命令行调用
     """
     try:
         logger.info("正在启动和风天气MCP服务...")
@@ -411,18 +726,18 @@ def stdio() -> None:
 
 def main() -> None:
     """
-    主函数入口。
+    主函数入口
 
-    解析命令行参数并启动相应的MCP服务。
+    解析命令行参数并启动相应的MCP服务
     """
     app()
 
 
 if __name__ == "__main__":
     """
-    主程序入口点。
+    主程序入口点
     
-    启动和风天气MCP服务，使用streamable-http传输协议。
-    确保在运行前已正确配置所有必需的环境变量。
+    启动和风天气MCP服务，使用streamable-http传输协议
+    确保在运行前已正确配置所有必需的环境变量
     """
     _get_city_location("海淀", location=True)  # 测试获取海淀区的经纬度
