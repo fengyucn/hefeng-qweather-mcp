@@ -684,6 +684,229 @@ def get_weather_now(
         return None
 
 
+@mcp.tool()
+def get_minutely_5m(location: str, lang: str = "zh") -> Optional[Dict[str, Any]]:
+    """
+    获取分钟级降水（近两小时、每5分钟）预报数据
+
+    平台: API iOS Android
+
+    请求路径: /v7/minutely/5m
+
+    Args:
+        location: 必选，查询地区的经度,纬度（十进制，最多支持小数点后两位），例如 "116.38,39.91"。
+                  也支持传入城市名（会尝试解析为经纬度）。
+        lang: 可选，多语言设置，默认中文 'zh'
+
+    Returns:
+        接口返回的 JSON 数据，失败时返回 None
+    """
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空，需为经度,纬度（如 116.38,39.91）或城市名")
+        return None
+
+    loc_value = str(location).strip()
+
+    # 如果传入的不是经纬度（不包含逗号），尝试当作城市名解析为经纬度
+    if "," not in loc_value:
+        resolved = _get_city_location(loc_value, location=True)
+        if not resolved:
+            logger.error(f"无法将 '{loc_value}' 解析为经纬度")
+            return None
+        loc_value = resolved
+
+    url = f"https://{api_host}/v7/minutely/5m"
+    params = {"location": loc_value, "lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取分钟级降水数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        minutely_data = response.json()
+        logger.info(f"成功获取 location={loc_value} 的分钟级降水预报数据")
+        return minutely_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求分钟级降水数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取分钟级降水数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_astronomy_moon(
+    location: str, date: str, lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取未来60天内的月升月落和逐小时月相数据（全球城市）
+
+    请求路径: /v7/astronomy/moon
+
+    Args:
+        location: 必选，LocationID 或 经度,纬度（十进制，最多两位小数），示例: "101010100" 或 "116.41,39.92"。
+                  也支持传入城市名，会尝试解析为 LocationID。
+        date: 必选，选择日期，格式 yyyyMMdd，支持今天到未来60天（包含今天）
+        lang: 可选，多语言设置，默认中文 'zh'
+
+    Returns:
+        接口返回的 JSON 数据，失败时返回 None
+    """
+    if not location or not str(location).strip():
+        logger.error(
+            "location 参数不能为空，需为 LocationID 或 经度,纬度（如 116.41,39.92）或城市名"
+        )
+        return None
+
+    loc_value = str(location).strip()
+
+    # 如果为经纬度，格式化为两位小数
+    if "," in loc_value:
+        try:
+            lon_str, lat_str = [s.strip() for s in loc_value.split(",", 1)]
+            lon = float(lon_str)
+            lat = float(lat_str)
+            loc_value = f"{lon:.2f},{lat:.2f}"
+        except Exception:
+            logger.error(f"无法解析经纬度参数: {loc_value}, 期望格式 lon,lat")
+            return None
+    else:
+        # 如果看起来像 LocationID（全数字），直接使用，否则尝试解析为 LocationID
+        if not loc_value.isdigit():
+            resolved = _get_city_location(loc_value)
+            if not resolved:
+                logger.error(f"无法将 '{loc_value}' 解析为 LocationID")
+                return None
+            loc_value = resolved
+
+    # 验证 date 格式并在允许范围内（今天 ~ 今天+60天）
+    try:
+        target_date = datetime.strptime(date, "%Y%m%d").date()
+    except Exception:
+        logger.error("date 参数格式错误，需为 yyyyMMdd，例如 20211120")
+        return None
+
+    beijing_today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    max_date = beijing_today + timedelta(days=60)
+    if target_date < beijing_today or target_date > max_date:
+        logger.error(
+            f"date 参数超出允许范围：应在 {beijing_today.strftime('%Y%m%d')} 到 {max_date.strftime('%Y%m%d')} 之间"
+        )
+        return None
+
+    url = f"https://{api_host}/v7/astronomy/moon"
+    params = {"location": loc_value, "date": date, "lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取月亮天文数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        moon_data = response.json()
+        logger.info(f"成功获取 location={loc_value} date={date} 的月亮天文数据")
+        return moon_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求月亮天文数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取月亮天文数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_astronomy_sun(
+    location: str, date: str, lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取未来60天内的日出日落时间（全球任意地点）
+
+    请求路径: /v7/astronomy/sun
+
+    Args:
+        location: 必选，LocationID 或 经度,纬度（十进制，最多两位小数），示例: "101010100" 或 "116.41,39.92"。
+                  也支持传入城市名，会尝试解析为 LocationID。
+        date: 必选，选择日期，格式 yyyyMMdd，支持今天到未来60天（包含今天）
+        lang: 可选，多语言设置，默认中文 'zh'
+
+    Returns:
+        接口返回的 JSON 数据，失败时返回 None
+    """
+    if not location or not str(location).strip():
+        logger.error(
+            "location 参数不能为空，需为 LocationID 或 经度,纬度（如 116.41,39.92）或城市名"
+        )
+        return None
+
+    loc_value = str(location).strip()
+
+    # 如果为经纬度，格式化为两位小数
+    if "," in loc_value:
+        try:
+            lon_str, lat_str = [s.strip() for s in loc_value.split(",", 1)]
+            lon = float(lon_str)
+            lat = float(lat_str)
+            loc_value = f"{lon:.2f},{lat:.2f}"
+        except Exception:
+            logger.error(f"无法解析经纬度参数: {loc_value}, 期望格式 lon,lat")
+            return None
+    else:
+        # 如果看起来像 LocationID（全数字），直接使用，否则尝试解析为 LocationID
+        if not loc_value.isdigit():
+            resolved = _get_city_location(loc_value)
+            if not resolved:
+                logger.error(f"无法将 '{loc_value}' 解析为 LocationID")
+                return None
+            loc_value = resolved
+
+    # 验证 date 格式并在允许范围内（今天 ~ 今天+60天）
+    try:
+        target_date = datetime.strptime(date, "%Y%m%d").date()
+    except Exception:
+        logger.error("date 参数格式错误，需为 yyyyMMdd，例如 20210220")
+        return None
+
+    beijing_today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    max_date = beijing_today + timedelta(days=60)
+    if target_date < beijing_today or target_date > max_date:
+        logger.error(
+            f"date 参数超出允许范围：应在 {beijing_today.strftime('%Y%m%d')} 到 {max_date.strftime('%Y%m%d')} 之间"
+        )
+        return None
+
+    url = f"https://{api_host}/v7/astronomy/sun"
+    params = {"location": loc_value, "date": date, "lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取太阳天文数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        sun_data = response.json()
+        logger.info(f"成功获取 location={loc_value} date={date} 的太阳天文数据")
+        return sun_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求太阳天文数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取太阳天文数据时发生未知错误: {e}")
+        return None
+
+
 @app.command()
 def http() -> None:
     """
