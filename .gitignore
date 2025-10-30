@@ -101,3 +101,6 @@ regenerate_keys.sh
 # 临时文件
 temp_*
 tmp_*
+
+# Claude 配置文件
+CLAUDE.md
