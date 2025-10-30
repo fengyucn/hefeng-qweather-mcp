@@ -34,27 +34,27 @@ mypy src/
 ### 运行服务
 ```bash
 # stdio 模式（推荐用于本地开发）
-hefeng-weather-mcp stdio
+hefeng-qweather-mcp stdio
 
 # http 模式（推荐用于远程访问）
-hefeng-weather-mcp http
+hefeng-qweather-mcp http
 
 # 或使用 uv 直接运行
-uv run hefeng-weather-mcp stdio
-uv run hefeng-weather-mcp http
+uv run hefeng-qweather-mcp stdio
+uv run hefeng-qweather-mcp http
 ```
 
 ### 服务管理
 ```bash
 # 查看运行状态
-ps aux | grep hefeng-weather-mcp
+ps aux | grep hefeng-qweather-mcp
 
 # 停止所有服务
-pkill -f hefeng-weather-mcp
+pkill -f hefeng-qweather-mcp
 
 # 分别停止不同模式
-pkill -f "hefeng-weather-mcp stdio"
-pkill -f "hefeng-weather-mcp http"
+pkill -f "hefeng-qweather-mcp stdio"
+pkill -f "hefeng-qweather-mcp http"
 ```
 
 ### 生成密钥对（仅首次配置需要）

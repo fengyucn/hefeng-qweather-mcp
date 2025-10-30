@@ -19,13 +19,13 @@
 ## 安装
 
 ```bash
-uv tool install hefeng-weather-mcp
+uv tool install hefeng-qweather-mcp
 ```
 
 或使用 pip 安装：
 
 ```bash
-pip install hefeng-weather-mcp
+pip install hefeng-qweather-mcp
 ```
 
 ```env
@@ -58,10 +58,10 @@ HEFENG_API_KEY=你的API KEY
 2. **启动服务器**
    ```bash
    # STDIO 模式（推荐用于本地开发）
-   hefeng-weather-mcp stdio
+   hefeng-qweather-mcp stdio
 
    # HTTP 模式（推荐用于远程访问）
-   hefeng-weather-mcp http
+   hefeng-qweather-mcp http
    ```
 
 ### 运行模式
@@ -71,7 +71,7 @@ HEFENG_API_KEY=你的API KEY
 HTTP 模式提供 Web API 接口，适合远程访问和 Web 集成：
 
 ```bash
-hefeng-weather-mcp http
+hefeng-qweather-mcp http
 ```
 
 服务器启动后将在 `http://127.0.0.1:8000` 运行，MCP 端点为 `http://127.0.0.1:8000/mcp`。
@@ -80,7 +80,7 @@ hefeng-weather-mcp http
 ```json
 {
   "servers": {
-    "hefeng-weather-mcp": {
+    "hefeng-qweather-mcp": {
       "url": "http://127.0.0.1:8000/mcp",
       "type": "http"
     }
@@ -94,16 +94,16 @@ hefeng-weather-mcp http
 STDIO 模式通过标准输入输出通信，适合本地开发：
 
 ```bash
-hefeng-weather-mcp stdio
+hefeng-qweather-mcp stdio
 ```
 
 **VS Code 配置：**
 ```json
 {
   "servers": {
-    "hefeng-weather-mcp": {
+    "hefeng-qweather-mcp": {
       "type": "stdio",
-      "command": "hefeng-weather-mcp stdio"
+      "command": "hefeng-qweather-mcp stdio"
     }
   },
   "inputs": []
@@ -114,9 +114,9 @@ hefeng-weather-mcp stdio
 ```json
 {
   "servers": {
-    "hefeng-weather-mcp": {
+    "hefeng-qweather-mcp": {
       "type": "stdio",
-      "command": "uvx hefeng-weather-mcp stdio",
+      "command": "uvx hefeng-qweather-mcp stdio",
       "envFile": "${workspaceFolder}/.env"
     }
   },
@@ -129,17 +129,17 @@ hefeng-weather-mcp stdio
 #### 查看运行状态
 ```bash
 # 查看后台进程
-ps aux | grep hefeng-weather-mcp
+ps aux | grep hefeng-qweather-mcp
 ```
 
 #### 停止服务器
 ```bash
 # 停止所有模式
-pkill -f hefeng-weather-mcp
+pkill -f hefeng-qweather-mcp
 
 # 或分别停止
-pkill -f "hefeng-weather-mcp stdio"
-pkill -f "hefeng-weather-mcp http"
+pkill -f "hefeng-qweather-mcp stdio"
+pkill -f "hefeng-qweather-mcp http"
 ```
 
 #### 验证配置
@@ -252,8 +252,8 @@ get_weather("深圳", "30d")  # 30天预报
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yeisme/hefeng-weather-mcp.git
-cd hefeng-weather-mcp
+git clone https://github.com/fengyucn/hefeng-qweather-mcp.git
+cd hefeng-qweather-mcp
 ```
 
 ### 2. 安装依赖
@@ -370,8 +370,8 @@ MIT License
 如有问题或建议，请通过以下方式联系：
 
 - 📧 Email: [yefun2004@gmail.com](mailto:yefun2004@gmail.com)
-- 🐛 Issues: [GitHub Issues](https://github.com/yeisme/hefeng-weather-mcp/issues)
-- 💬 讨论: [GitHub Discussions](https://github.com/yeisme/hefeng-weather-mcp/discussions)
+- 🐛 Issues: [GitHub Issues](https://github.com/fengyucn/hefeng-qweather-mcp/issues)
+- 💬 讨论: [GitHub Discussions](https://github.com/fengyucn/hefeng-qweather-mcp/discussions)
 
 ---
 
