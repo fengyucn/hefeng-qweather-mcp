@@ -369,7 +369,7 @@ MIT License
 
 如有问题或建议，请通过以下方式联系：
 
-- 📧 Email: [yefun2004@gmail.com](mailto:yefun2004@gmail.com)
+
 - 🐛 Issues: [GitHub Issues](https://github.com/fengyucn/hefeng-qweather-mcp/issues)
 - 💬 讨论: [GitHub Discussions](https://github.com/fengyucn/hefeng-qweather-mcp/discussions)
 
