@@ -1,11 +1,11 @@
 [project]
-name = "hefeng-weather-mcp"
-version = "0.3.0"
+name = "hefeng-qweather-mcp"
+version = "0.3.1"
 description = "和风天气 MCP 服务 - 基于 Model Context Protocol 的天气数据查询服务"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "yeisme", email = "yefun2004@gmail.com" }
+    { name = "fengyucn", email = "your-email@example.com" }
 ]
 keywords = ["weather", "mcp", "hefeng", "qweather", "climate"]
 classifiers = [
@@ -21,28 +21,30 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "cryptography>=45.0.5",
-    "httpx>=0.28.1",
-    "mcp[cli]>=1.12.0",
-    "pyjwt>=2.10.1",
-    "python-dotenv>=1.1.1",
-    "typer>=0.16.0",
+    "cryptography>=41.0.0",
+    "httpx>=0.25.0",
+    "mcp[cli]>=1.10.0",
+    "pyjwt>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "typer>=0.12.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yeisme/hefeng-weather-mcp"
-Repository = "https://github.com/yeisme/hefeng-weather-mcp.git"
-Issues = "https://github.com/yeisme/hefeng-weather-mcp/issues"
-Documentation = "https://github.com/yeisme/hefeng-weather-mcp#readme"
+Homepage = "https://github.com/fengyucn/hefeng-qweather-mcp"
+Repository = "https://github.com/fengyucn/hefeng-qweather-mcp.git"
+Issues = "https://github.com/fengyucn/hefeng-qweather-mcp/issues"
+Documentation = "https://github.com/fengyucn/hefeng-qweather-mcp#readme"
 
 [project.scripts]
-hefeng-weather-mcp = "hefeng_weather_mcp.main:main"
+hefeng-qweather-mcp = "hefeng_qweather_mcp.main:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [dependency-groups]
 dev = [
+    "build>=1.3.0",
     "mypy>=1.17.0",
     "ruff>=0.12.4",
+    "twine>=6.2.0",
 ]

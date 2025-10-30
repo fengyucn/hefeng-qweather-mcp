@@ -19,13 +19,13 @@ import typer
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger("hefeng_weather_mcp")
+logger = logging.getLogger("hefeng_qweather_mcp")
 
 # 加载环境变量
 load_dotenv()
 
 # 初始化MCP服务
-mcp = FastMCP("hefeng_weather_mcp")
+mcp = FastMCP("hefeng_qweather_mcp")
 app = typer.Typer()
 
 
@@ -39,7 +39,7 @@ api_key = os.environ.get("HEFENG_API_KEY")
 project_id = os.environ.get("HEFENG_PROJECT_ID")
 key_id = os.environ.get("HEFENG_KEY_ID")
 private_key_path = os.environ.get("HEFENG_PRIVATE_KEY_PATH")
-private_key = os.environ.get("HEFENG_PRIVATE_KEY")
+private_key_str = os.environ.get("HEFENG_PRIVATE_KEY")
 
 # 验证必需的环境变量
 if not api_host:
@@ -48,10 +48,7 @@ if not api_host:
 # 优先使用API KEY认证，如果不可用则使用JWT认证
 if api_key:
     # 使用API KEY认证（推荐）
-    auth_header = {
-        "X-QW-Api-Key": api_key,
-        "Content-Type": "application/json"
-    }
+    auth_header = {"X-QW-Api-Key": api_key, "Content-Type": "application/json"}
     logger.info("使用API KEY认证模式")
     logger.info(f"API主机: {api_host}")
     logger.info(f"API KEY: {api_key[:10]}...")
@@ -60,10 +57,13 @@ else:
     JWT_EXPIRY_SECONDS = 900  # JWT令牌过期时间（15分钟）
 
     # 验证JWT认证所需的配置
-    if not project_id or not key_id or (not private_key_path and not private_key):
-        raise ValueError("必须设置 HEFENG_API_KEY，或者设置完整的JWT认证配置（HEFENG_PROJECT_ID, HEFENG_KEY_ID, HEFENG_PRIVATE_KEY_PATH/HEFENG_PRIVATE_KEY）")
+    if not project_id or not key_id or (not private_key_path and not private_key_str):
+        raise ValueError(
+            "必须设置 HEFENG_API_KEY，或者设置完整的JWT认证配置（HEFENG_PROJECT_ID, HEFENG_KEY_ID, HEFENG_PRIVATE_KEY_PATH/HEFENG_PRIVATE_KEY）"
+        )
 
     # 读取私钥
+    private_key: bytes
     if private_key_path:
         try:
             with open(private_key_path, "rb") as f:
@@ -73,7 +73,8 @@ else:
         except Exception as e:
             raise Exception(f"读取私钥文件失败: {e}")
     else:
-        private_key = private_key.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
+        assert private_key_str is not None
+        private_key = private_key_str.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
 
     # 生成JWT令牌
     payload = {
@@ -84,7 +85,9 @@ else:
     headers = {"kid": key_id}
 
     try:
-        encoded_jwt = jwt.encode(payload, private_key, algorithm="EdDSA", headers=headers)
+        encoded_jwt = jwt.encode(
+            payload, private_key, algorithm="EdDSA", headers=headers
+        )
     except Exception as e:
         raise Exception(f"JWT令牌生成失败: {e}")
 
