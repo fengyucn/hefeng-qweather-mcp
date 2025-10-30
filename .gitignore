@@ -79,3 +79,25 @@ Desktop.ini
 *.log
 
 .python-version
+
+# 测试文件
+test_*.py
+*_test.py
+comprehensive_test.py
+diagnose.py
+quick_test.py
+main_api_key.py
+
+# 截图文件
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+
+# 脚本文件
+regenerate_keys.sh
+
+# 临时文件
+temp_*
+tmp_*

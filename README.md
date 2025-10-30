@@ -1,24 +1,19 @@
 # 和风天气 MCP 服务
 
-一个基于 Model Context Protocol (MCP) 的和风天气服务，提供天气预报、气象预警、太阳辐射等多种气象数据查询功能。
-
-![天气](image-天气.png)
-![生活指数](image-生活指数.png)
-![空气质量](image-空气质量.png)
-![历史空气质量](image-历史空气质量.png)
-![当前天气](image-当前天气.png)
-![广州未来三天天气](image-广州未来三天天气.png)
-![未来广州12小时内的天气](image-未来广州12小时内的天气.png)
+一个基于 Model Context Protocol (MCP) 的和风天气服务，提供天气预报、气象预警、空气质量、历史数据、天文信息等多种气象数据查询功能。
 
 ## 功能特性
 
-- **天气预报**: 获取未来三天详细天气预报
+- **天气预报**: 获取3-30天详细天气预报（支持3d/7d/10d/15d/30d）
 - **气象预警**: 查询实时气象灾害预警信息
-- **生活指数**: 获取各类生活指数预报，如洗车、穿衣、感冒等
+- **生活指数**: 获取各类生活指数预报，如洗车、穿衣、感冒等（16种指数）
 - **空气质量**: 获取城市的空气质量指数（AQI）及主要污染物信息
 - **逐小时预报**: 获取未来 24/72/168 小时逐小时天气（温度、天气状况、风力/风速/风向、相对湿度、气压、降水概率、露点、云量等）
 - **实况天气**: 获取近实时天气（温度、体感温度、风、湿度、气压、降水量、能见度、露点、云量等）
-- **安全认证**: 使用 JWT + EdDSA 数字签名认证
+- **历史数据**: 获取历史天气和空气质量数据（最多10天）
+- **天文数据**: 获取日出日落时间、月相月升月落信息
+- **分钟级预报**: 获取未来2小时5分钟级降水预报
+- **双认证支持**: 支持 API KEY 和 JWT + EdDSA 数字签名认证
 - **详细日志**: 完整的操作日志和错误处理
 
 ## 安装
@@ -34,27 +29,54 @@ pip install hefeng-weather-mcp
 ```
 
 ```env
-HEFENG_API_HOST=devapi.qweather.com
-HEFENG_PROJECT_ID=你的项目ID
-HEFENG_KEY_ID=你的凭据ID
-HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
+# 推荐配置 - API KEY 认证（简单快捷）
+HEFENG_API_HOST=你的API主机地址
+HEFENG_API_KEY=你的API KEY
+
+# 备用配置 - JWT 数字签名认证
+# HEFENG_PROJECT_ID=你的项目ID
+# HEFENG_KEY_ID=你的凭据ID
+# HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
 
 # 可选：直接加载密钥内容，方便远程部署
-HEFENG_PRIVATE_KEY=
+# HEFENG_PRIVATE_KEY=
 ```
 
 ## 使用
 
-### streamable-http 模式
+### 快速开始
 
-配置环境变量后运行程序
+1. **配置环境变量**
+   ```bash
+   # 复制并编辑配置文件
+   cp .env.example .env
+
+   # 填入您的和风天气 API 配置
+   # 推荐使用 API KEY 认证方式
+   ```
+
+2. **启动服务器**
+   ```bash
+   # STDIO 模式（推荐用于本地开发）
+   hefeng-weather-mcp stdio
+
+   # HTTP 模式（推荐用于远程访问）
+   hefeng-weather-mcp http
+   ```
+
+### 运行模式
+
+#### HTTP 模式
+
+HTTP 模式提供 Web API 接口，适合远程访问和 Web 集成：
 
 ```bash
 hefeng-weather-mcp http
 ```
 
-vscode MCP 配置文件：
+服务器启动后将在 `http://127.0.0.1:8000` 运行，MCP 端点为 `http://127.0.0.1:8000/mcp`。
 
+**VS Code 配置：**
 ```json
 {
   "servers": {
@@ -67,20 +89,19 @@ vscode MCP 配置文件：
 }
 ```
 
-### stdio 模式
+#### STDIO 模式
 
-安装并配置环境变量后运行程序
+STDIO 模式通过标准输入输出通信，适合本地开发：
 
 ```bash
 hefeng-weather-mcp stdio
 ```
 
-vscode MCP 配置文件：
-
+**VS Code 配置：**
 ```json
 {
   "servers": {
-    "hefeng-weather-mcp-stdio": {
+    "hefeng-weather-mcp": {
       "type": "stdio",
       "command": "hefeng-weather-mcp stdio"
     }
@@ -89,12 +110,11 @@ vscode MCP 配置文件：
 }
 ```
 
-或者使用 `uv` 命令：
-
+**使用 uv 运行：**
 ```json
 {
   "servers": {
-    "hefeng-weather-mcp-uv": {
+    "hefeng-weather-mcp": {
       "type": "stdio",
       "command": "uvx hefeng-weather-mcp stdio",
       "envFile": "${workspaceFolder}/.env"
@@ -103,6 +123,123 @@ vscode MCP 配置文件：
   "inputs": []
 }
 ```
+
+### 管理服务器
+
+#### 查看运行状态
+```bash
+# 查看后台进程
+ps aux | grep hefeng-weather-mcp
+```
+
+#### 停止服务器
+```bash
+# 停止所有模式
+pkill -f hefeng-weather-mcp
+
+# 或分别停止
+pkill -f "hefeng-weather-mcp stdio"
+pkill -f "hefeng-weather-mcp http"
+```
+
+#### 验证配置
+
+服务启动后，可以通过以下方式验证配置是否正确：
+
+1. **检查日志输出** - 确认 API 主机和认证信息正确显示
+2. **在 VS Code 中测试** - 使用 MCP 工具查询天气数据
+3. **检查服务状态** - 确保服务正常运行无错误
+
+如果遇到配置问题，请检查：
+
+- 环境变量是否正确设置
+- API KEY 是否有效且未过期
+- 网络连接是否正常
+
+### 使用示例
+
+#### 天文数据查询示例
+
+```python
+# 查询北京今天的日出日落时间
+get_astronomy_sun("北京", "20251029")
+# 结果：日出 06:40, 日落 17:17
+
+# 查询上海的月相信息
+get_astronomy_moon("上海", "20251101")
+# 结果：月升 13:24, 月落 23:09, 月相：上弦月
+
+# 使用经纬度查询（全球任意地点）
+get_astronomy_sun("116.41,39.92", "20251029")  # 北京坐标
+get_astronomy_moon("121.47,31.23", "20251101")  # 上海坐标
+
+# 查询未来日期的天文数据
+get_astronomy_sun("广州", "20251225")  # 圣诞节
+get_astronomy_moon("深圳", "20260101")  # 元旦
+```
+
+#### 多天天气预报示例
+
+```python
+# 查询不同天数的天气预报
+get_weather("北京", "3d")   # 3天预报（默认）
+get_weather("上海", "7d")   # 7天预报
+get_weather("广州", "15d")  # 15天预报
+get_weather("深圳", "30d")  # 30天预报
+```
+
+### 可用的 MCP 工具
+
+您的 MCP 服务器提供以下天气查询工具：
+
+#### 基础天气工具
+- **`get_weather_now`** - 获取实时天气数据
+  - 参数：`city`（城市名）或 `location`（位置ID/坐标）
+  - 返回：温度、体感温度、天气状况、湿度、气压等
+
+- **`get_weather`** - 获取天气预报
+  - 参数：`city`（城市名）、`days`（预报天数：3d/7d/10d/15d/30d，默认3d）
+  - 返回：指定天数的每日天气详情
+
+- **`get_hourly_weather`** - 获取逐小时天气预报
+  - 参数：`hours`（24h/72h/168h）、`city` 或 `location`
+  - 返回：逐小时温度、天气、风力、湿度等
+
+#### 空气质量工具
+- **`get_air_quality`** - 获取实时空气质量
+  - 参数：`city`（城市名）
+  - 返回：AQI、污染物浓度、健康建议
+
+- **`get_air_quality_history`** - 获取历史空气质量
+  - 参数：`city`（城市名）、`days`（1-10天）
+  - 返回：历史空气质量数据
+
+#### 生活指数工具
+- **`get_indices`** - 获取生活指数预报
+  - 参数：`city`（城市名）、`days`（1d/3d）、`index_types`（指数类型）
+  - 返回：16种生活指数（运动、洗车、穿衣、感冒等）
+
+#### 预警和天文工具
+- **`get_warning`** - 获取气象预警信息
+  - 参数：`city`（城市名）
+  - 返回：实时气象灾害预警
+
+- **`get_astronomy_sun`** - 获取日出日落时间
+  - 参数：`location`（城市名/LocationID/坐标）、`date`（yyyyMMdd格式，支持未来60天）
+  - 返回：日出日落时间（支持全球任意地点）
+
+- **`get_astronomy_moon`** - 获取月相和月升月落信息
+  - 参数：`location`（城市名/LocationID/坐标）、`date`（yyyyMMdd格式，支持未来60天）
+  - 返回：月升月落时间、24小时逐小时月相数据（含月相名称、照明度）
+
+#### 历史和详细数据工具
+- **`get_weather_history`** - 获取历史天气数据
+  - 参数：`city` 或 `location`、`days`（1-10天）
+  - 返回：历史天气数据
+
+- **`get_minutely_5m`** - 获取分钟级降水预报
+  - 参数：`location`（坐标或城市名）
+  - 返回：未来2小时5分钟级降水数据
 
 ## 前置要求
 
@@ -133,61 +270,51 @@ pip install -e .
 uv sync
 ```
 
-### 3. 创建和风天气项目
+### 3. 获取和风天气 API 配置
+
+#### 方式一：API KEY 认证（推荐）
 
 1. 访问 [和风天气控制台](https://console.qweather.com/project/)
 2. 注册/登录账号
-3. 点击"创建项目"，填写项目信息
-4. 记录下生成的 **Project ID**
+3. 创建项目并获取 **API KEY**
+4. 复制配置模板文件：
 
-### 4. 生成密钥对
+```bash
+cp .env.example .env
+```
 
-在项目根目录下运行以下命令生成 EdDSA ed25519 密钥对：
+1. 编辑 `.env` 文件：
+
+```env
+# API KEY 认证配置
+HEFENG_API_HOST=你的API主机地址
+HEFENG_API_KEY=你的API KEY
+```
+
+#### 方式二：JWT 数字签名认证（备用）
+
+如果需要使用 JWT 认证：
+
+1. 在和风天气控制台创建项目并记录 **Project ID**
+2. 生成 EdDSA 密钥对：
 
 ```bash
 openssl genpkey -algorithm ED25519 -out ed25519-private.pem \
 && openssl pkey -pubout -in ed25519-private.pem > ed25519-public.pem
 ```
 
-这将生成两个文件：
-
-- `ed25519-private.pem`: 私钥文件（保密，不要提交到代码库）
-- `ed25519-public.pem`: 公钥文件
-
-### 5. 创建 API 凭据
-
-1. 在和风天气控制台中，进入你创建的项目
-2. 点击"凭据管理" → "创建凭据"
-3. 选择凭据类型为 **"数字签名"**
-4. 上传刚才生成的 `ed25519-public.pem` 公钥文件
-5. 记录下生成的 **Key ID**
-
-### 6. 配置环境变量
-
-复制配置模板文件：
-
-```bash
-cp .env.example .env
-```
-
-编辑 `.env` 文件，填入实际的配置信息：
+3. 在控制台中创建数字签名凭据，上传公钥文件
+4. 配置 `.env` 文件：
 
 ```env
-# 和风天气API配置
-HEFENG_API_HOST=devapi.qweather.com
+# JWT 认证配置
+HEFENG_API_HOST=你的API主机地址
 HEFENG_PROJECT_ID=你的项目ID
 HEFENG_KEY_ID=你的凭据ID
 HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
 ```
 
-**配置说明：**
-
-- `HEFENG_API_HOST`:
-  - 开发环境使用: `devapi.qweather.com`
-  - 生产环境使用: `api.qweather.com`
-- `HEFENG_PROJECT_ID`: 步骤 3 中获得的项目 ID
-- `HEFENG_KEY_ID`: 步骤 5 中获得的凭据 ID
-- `HEFENG_PRIVATE_KEY_PATH`: 私钥文件路径，默认为 `./ed25519-private.pem`
+**注意：** 推荐优先使用 API KEY 认证，配置更简单。JWT 认证适合需要更高安全性的场景。
 
 ### 开发指南
 
@@ -195,6 +322,25 @@ HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
 2. **类型检查**: 使用 `mypy` 进行静态类型检查
 3. **测试**: 建议为新功能添加相应的单元测试
 4. **文档**: 确保所有新功能都有详细的 docstring 文档
+
+## 版本历史
+
+### v0.3.0 (最新)
+
+- ✅ 新增天文数据接口：日出日落时间和月相月升月落
+- ✅ 新增分钟级降水预报接口（未来2小时5分钟级）
+- ✅ 支持多种天气预报时长：3d/7d/10d/15d/30d
+- ✅ 支持24/72/168小时逐小时天气预报
+- ✅ 完善历史数据查询（天气和空气质量，最多10天）
+- ✅ 优化认证系统，优先使用API KEY认证
+- ✅ 完善错误处理和日志记录
+
+### v0.2.1
+
+- 基础天气查询功能
+- JWT数字签名认证支持
+- 空气质量查询
+- 生活指数查询
 
 ## 许可证
 

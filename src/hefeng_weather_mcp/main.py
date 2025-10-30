@@ -1,6 +1,6 @@
 """
 Author: yeisme
-Version: 0.2.1
+Version: 0.3.0
 License: MIT
 """
 
@@ -30,51 +30,72 @@ app = typer.Typer()
 
 
 # API配置常量
-JWT_EXPIRY_SECONDS = 900  # JWT令牌过期时间（15分钟）
 DEFAULT_FORECAST_DAYS = 3  # 默认天气预报天数
 DEFAULT_SOLAR_HOURS = 24  # 默认太阳辐射预报小时数
 
 # 从环境变量获取API配置
 api_host = os.environ.get("HEFENG_API_HOST")
+api_key = os.environ.get("HEFENG_API_KEY")
 project_id = os.environ.get("HEFENG_PROJECT_ID")
 key_id = os.environ.get("HEFENG_KEY_ID")
-
 private_key_path = os.environ.get("HEFENG_PRIVATE_KEY_PATH")
-# 如果设置了私钥文件路径，则读取文件内容
-if private_key_path:
-    try:
-        with open(private_key_path, "rb") as f:
-            private_key = f.read()
-    except FileNotFoundError:
-        raise FileNotFoundError(f"私钥文件未找到: {private_key_path}")
-    except Exception as e:
-        raise Exception(f"读取私钥文件失败: {e}")
-else:
-    private_key = os.environ.get("HEFENG_PRIVATE_KEY")
-    if private_key:
-        private_key = private_key.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
+private_key = os.environ.get("HEFENG_PRIVATE_KEY")
 
 # 验证必需的环境变量
-if not api_host or not project_id or not key_id or not private_key:
-    raise ValueError("必需的环境变量未设置，请检查配置")
+if not api_host:
+    raise ValueError("HEFENG_API_HOST 环境变量未设置")
 
-# 生成JWT令牌
-payload = {
-    "iat": int(time.time()),
-    "exp": int(time.time()) + JWT_EXPIRY_SECONDS,
-    "sub": project_id,
-}
-headers = {"kid": key_id}
+# 优先使用API KEY认证，如果不可用则使用JWT认证
+if api_key:
+    # 使用API KEY认证（推荐）
+    auth_header = {
+        "X-QW-Api-Key": api_key,
+        "Content-Type": "application/json"
+    }
+    logger.info("使用API KEY认证模式")
+    logger.info(f"API主机: {api_host}")
+    logger.info(f"API KEY: {api_key[:10]}...")
+else:
+    # 使用JWT认证（备用方案）
+    JWT_EXPIRY_SECONDS = 900  # JWT令牌过期时间（15分钟）
 
-try:
-    encoded_jwt = jwt.encode(payload, private_key, algorithm="EdDSA", headers=headers)
-except Exception as e:
-    raise Exception(f"JWT令牌生成失败: {e}")
+    # 验证JWT认证所需的配置
+    if not project_id or not key_id or (not private_key_path and not private_key):
+        raise ValueError("必须设置 HEFENG_API_KEY，或者设置完整的JWT认证配置（HEFENG_PROJECT_ID, HEFENG_KEY_ID, HEFENG_PRIVATE_KEY_PATH/HEFENG_PRIVATE_KEY）")
 
-# 认证头
-auth_header = {
-    "Authorization": f"Bearer {encoded_jwt}",
-}
+    # 读取私钥
+    if private_key_path:
+        try:
+            with open(private_key_path, "rb") as f:
+                private_key = f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"私钥文件未找到: {private_key_path}")
+        except Exception as e:
+            raise Exception(f"读取私钥文件失败: {e}")
+    else:
+        private_key = private_key.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
+
+    # 生成JWT令牌
+    payload = {
+        "iat": int(time.time()),
+        "exp": int(time.time()) + JWT_EXPIRY_SECONDS,
+        "sub": project_id,
+    }
+    headers = {"kid": key_id}
+
+    try:
+        encoded_jwt = jwt.encode(payload, private_key, algorithm="EdDSA", headers=headers)
+    except Exception as e:
+        raise Exception(f"JWT令牌生成失败: {e}")
+
+    # 认证头
+    auth_header = {
+        "Authorization": f"Bearer {encoded_jwt}",
+    }
+    logger.info("使用JWT认证模式")
+    logger.info(f"API主机: {api_host}")
+    logger.info(f"项目ID: {project_id}")
+    logger.info(f"密钥ID: {key_id}")
 
 
 def _get_city_location(city: str, location: bool = False) -> Optional[str]:
@@ -132,17 +153,18 @@ def _get_city_location(city: str, location: bool = False) -> Optional[str]:
 
 
 @mcp.tool()
-def get_weather(city: str) -> Optional[Dict[str, Any]]:
+def get_weather(city: str, days: str = "3d") -> Optional[Dict[str, Any]]:
     """
-    获取指定城市未来三天的天气预报
+    获取指定城市的天气预报
 
     提供详细的天气信息，包括温度、湿度、风力、降水等数据
 
     Args:
         city: 城市名称，支持中英文，如 '北京'、'上海'、'Beijing' 等
+        days: 预报天数，支持 "3d"(默认)、"7d"、"10d"、"15d"、"30d"
 
     Returns:
-        包含未来三天天气预报的JSON数据，如果查询失败则返回None
+        包含指定天数天气预报的JSON数据，如果查询失败则返回None
     """
     if not city or not city.strip():
         logger.error("城市名称不能为空")
@@ -150,15 +172,19 @@ def get_weather(city: str) -> Optional[Dict[str, Any]]:
 
     city = city.strip()
 
+    # 验证days参数
+    valid_days = ["3d", "7d", "10d", "15d", "30d"]
+    if days not in valid_days:
+        logger.error(f"无效的预报天数参数: {days}，支持的值: {', '.join(valid_days)}")
+        return None
+
     # 获取城市LocationID
     location_id = _get_city_location(city)
     if not location_id:
         logger.error(f"无法获取城市 '{city}' 的位置信息")
         return None
 
-    url = (
-        f"https://{api_host}/v7/weather/{DEFAULT_FORECAST_DAYS}d?location={location_id}"
-    )
+    url = f"https://{api_host}/v7/weather/{days}?location={location_id}"
 
     try:
         response = httpx.get(url=url, headers=auth_header)
@@ -917,7 +943,11 @@ def http() -> None:
     try:
         logger.info("正在启动和风天气MCP服务...")
         logger.info(f"API主机: {api_host}")
-        logger.info(f"项目ID: {project_id}")
+        if api_key:
+            logger.info(f"API KEY: {api_key[:10]}...")
+        else:
+            logger.info(f"项目ID: {project_id}")
+            logger.info(f"密钥ID: {key_id}")
         logger.info("服务启动成功，等待连接...")
         mcp.run(transport="streamable-http")
     except KeyboardInterrupt:
@@ -937,7 +967,11 @@ def stdio() -> None:
     try:
         logger.info("正在启动和风天气MCP服务...")
         logger.info(f"API主机: {api_host}")
-        logger.info(f"项目ID: {project_id}")
+        if api_key:
+            logger.info(f"API KEY: {api_key[:10]}...")
+        else:
+            logger.info(f"项目ID: {project_id}")
+            logger.info(f"密钥ID: {key_id}")
         logger.info("服务启动成功，等待连接...")
         mcp.run(transport="stdio")
     except KeyboardInterrupt:
@@ -959,8 +993,8 @@ def main() -> None:
 if __name__ == "__main__":
     """
     主程序入口点
-    
+
     启动和风天气MCP服务，使用streamable-http传输协议
     确保在运行前已正确配置所有必需的环境变量
     """
-    _get_city_location("海淀", location=True)  # 测试获取海淀区的经纬度
+    main()
