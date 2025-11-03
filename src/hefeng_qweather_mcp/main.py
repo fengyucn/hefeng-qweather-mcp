@@ -1175,6 +1175,128 @@ def get_grid_weather_daily(
         return None
 
 
+@mcp.tool()
+def get_grid_weather_hourly(
+    location: str, hours: str = "24h", lang: str = "zh", unit: str = "m"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取全球指定坐标的格点逐小时天气预报（高分辨率数值模式）
+
+    基于数值预报模型提供3-5公里分辨率的逐小时天气预报，支持24小时或72小时预报。
+    注意：格点天气采用UTC 0时区表示时间，基于数值模型而非观测站数据。
+
+    Args:
+        location: 必选，经度,纬度坐标（十进制，最多两位小数），例如 "116.41,39.92"
+        hours: 可选，预报小时数，"24h"（24小时，默认）或 "72h"（72小时）
+        lang: 可选，多语言设置，默认中文 "zh"
+        unit: 可选，数据单位，"m" 公制（默认）或 "i" 英制
+
+    Returns:
+        包含格点逐小时天气预报的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> get_grid_weather_hourly("116.41,39.92")
+        {
+            "code": "200",
+            "updateTime": "2021-12-16T19:27+08:00",
+            "fxLink": "https://www.qweather.com",
+            "hourly": [
+                {
+                    "fxTime": "2021-12-16T12:00+00:00",
+                    "temp": "-2",
+                    "icon": "150",
+                    "text": "晴",
+                    "wind360": "285",
+                    "windDir": "西北风",
+                    "windScale": "2",
+                    "windSpeed": "8",
+                    "humidity": "30",
+                    "precip": "0.0",
+                    "pressure": "1022",
+                    "cloud": "0",
+                    "dew": "-17"
+                },
+                ...
+            ],
+            "refer": {
+                "sources": ["QWeather"],
+                "license": ["QWeather Developers License"]
+            }
+        }
+    """
+    # 验证 location 参数格式（必须是经纬度坐标）
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空，需为经度,纬度坐标（如 116.41,39.92）")
+        return None
+
+    loc_value = str(location).strip()
+
+    # 验证坐标格式
+    if "," not in loc_value:
+        logger.error(
+            f"location 参数格式错误：'{loc_value}'，期望格式：经度,纬度（如 116.41,39.92）"
+        )
+        return None
+
+    try:
+        # 解析并验证经纬度坐标
+        lon_str, lat_str = [s.strip() for s in loc_value.split(",", 1)]
+        lon = float(lon_str)
+        lat = float(lat_str)
+
+        # 验证经纬度范围
+        if not (-180 <= lon <= 180):
+            logger.error(f"经度超出有效范围 [-180, 180]：{lon}")
+            return None
+        if not (-90 <= lat <= 90):
+            logger.error(f"纬度超出有效范围 [-90, 90]：{lat}")
+            return None
+
+        # 格式化坐标为两位小数
+        formatted_loc = f"{lon:.2f},{lat:.2f}"
+        logger.info(f"格式化坐标：{loc_value} → {formatted_loc}")
+
+    except Exception as e:
+        logger.error(f"无法解析坐标参数：{loc_value}，错误：{e}")
+        return None
+
+    # 验证 hours 参数
+    valid_hours = ["24h", "72h"]
+    if hours not in valid_hours:
+        logger.error(
+            f"无效的预报小时数参数: {hours}，支持的值: {', '.join(valid_hours)}"
+        )
+        return None
+
+    # 验证 unit 参数
+    if unit not in {"m", "i"}:
+        logger.error(f"无效的单位参数 unit: {unit}，支持的值: m, i")
+        return None
+
+    url = f"https://{api_host}/v7/grid-weather/{hours}"
+    params = {"location": formatted_loc, "lang": lang, "unit": unit}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取格点逐小时天气预报失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        grid_hourly_data = response.json()
+        logger.info(f"成功获取坐标 {formatted_loc} 的格点逐小时天气预报数据（{hours}）")
+        return grid_hourly_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求格点逐小时天气预报时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取格点逐小时天气预报时发生未知错误: {e}")
+        return None
+
+
 @app.command()
 def http() -> None:
     """
