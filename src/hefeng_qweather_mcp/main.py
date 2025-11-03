@@ -24,7 +24,7 @@ logger = logging.getLogger("hefeng_qweather_mcp")
 # 加载环境变量
 # 尝试从多个位置加载 .env 文件以提高鲁棒性
 load_dotenv()  # 默认：当前工作目录
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))  # 项目根目录
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))  # 项目根目录
 
 # 初始化MCP服务
 mcp = FastMCP("hefeng_qweather_mcp")
@@ -76,7 +76,9 @@ else:
             raise Exception(f"读取私钥文件失败: {e}")
     else:
         assert private_key_str is not None
-        private_key = private_key_str.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
+        private_key = (
+            private_key_str.replace("\\r\\n", "\n").replace("\\n", "\n").encode()
+        )
 
     # 生成JWT令牌
     payload = {
@@ -935,6 +937,116 @@ def get_astronomy_sun(
         return None
     except Exception as e:
         logger.error(f"获取太阳天文数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_grid_weather_now(
+    location: str, lang: str = "zh", unit: str = "m"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取全球指定坐标的格点实时天气数据（高分辨率数值模式）
+
+    基于数值预报模型提供3-5公里分辨率的实时天气，适合精确坐标查询。
+    注意：格点天气采用UTC 0时区表示时间，基于数值模型而非观测站数据。
+
+    Args:
+        location: 必选，经度,纬度坐标（十进制，最多两位小数），例如 "116.41,39.92"
+        lang: 可选，多语言设置，默认中文 "zh"
+        unit: 可选，数据单位，"m" 公制（默认）或 "i" 英制
+
+    Returns:
+        包含格点实时天气的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> get_grid_weather_now("116.41,39.92")
+        {
+            "code": "200",
+            "updateTime": "2021-12-16T18:25+08:00",
+            "fxLink": "https://www.qweather.com",
+            "now": {
+                "obsTime": "2021-12-16T10:00+00:00",
+                "temp": "-1",
+                "icon": "150",
+                "text": "晴",
+                "wind360": "287",
+                "windDir": "西北风",
+                "windScale": "2",
+                "windSpeed": "10",
+                "humidity": "27",
+                "precip": "0.0",
+                "pressure": "1021",
+                "cloud": "0",
+                "dew": "-17"
+            },
+            "refer": {
+                "sources": ["QWeather"],
+                "license": ["QWeather Developers License"]
+            }
+        }
+    """
+    # 验证 location 参数格式（必须是经纬度坐标）
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空，需为经度,纬度坐标（如 116.41,39.92）")
+        return None
+
+    loc_value = str(location).strip()
+
+    # 验证坐标格式
+    if "," not in loc_value:
+        logger.error(
+            f"location 参数格式错误：'{loc_value}'，期望格式：经度,纬度（如 116.41,39.92）"
+        )
+        return None
+
+    try:
+        # 解析并验证经纬度坐标
+        lon_str, lat_str = [s.strip() for s in loc_value.split(",", 1)]
+        lon = float(lon_str)
+        lat = float(lat_str)
+
+        # 验证经纬度范围
+        if not (-180 <= lon <= 180):
+            logger.error(f"经度超出有效范围 [-180, 180]：{lon}")
+            return None
+        if not (-90 <= lat <= 90):
+            logger.error(f"纬度超出有效范围 [-90, 90]：{lat}")
+            return None
+
+        # 格式化坐标为两位小数
+        formatted_loc = f"{lon:.2f},{lat:.2f}"
+        logger.info(f"格式化坐标：{loc_value} → {formatted_loc}")
+
+    except Exception as e:
+        logger.error(f"无法解析坐标参数：{loc_value}，错误：{e}")
+        return None
+
+    # 验证 unit 参数
+    if unit not in {"m", "i"}:
+        logger.error(f"无效的单位参数 unit: {unit}，支持的值: m, i")
+        return None
+
+    url = f"https://{api_host}/v7/grid-weather/now"
+    params = {"location": formatted_loc, "lang": lang, "unit": unit}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取格点实时天气数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        grid_weather_data = response.json()
+        logger.info(f"成功获取坐标 {formatted_loc} 的格点实时天气数据")
+        return grid_weather_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求格点实时天气数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取格点实时天气数据时发生未知错误: {e}")
         return None
 
 
