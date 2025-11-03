@@ -1,6 +1,6 @@
 """
 Author: yeisme
-Version: 0.3.0
+Version: 0.3.3
 License: MIT
 """
 
@@ -22,7 +22,9 @@ logging.basicConfig(
 logger = logging.getLogger("hefeng_qweather_mcp")
 
 # 加载环境变量
-load_dotenv()
+# 尝试从多个位置加载 .env 文件以提高鲁棒性
+load_dotenv()  # 默认：当前工作目录
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))  # 项目根目录
 
 # 初始化MCP服务
 mcp = FastMCP("hefeng_qweather_mcp")

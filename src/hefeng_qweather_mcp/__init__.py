@@ -6,4 +6,4 @@ Expose package version here so packaging and runtime can read it.
 __all__ = ["__version__"]
 
 # Keep in sync with pyproject.toml
-__version__ = "0.3.2"
+__version__ = "0.3.3"
