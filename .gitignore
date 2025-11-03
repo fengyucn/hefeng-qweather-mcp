@@ -7,6 +7,8 @@
 .env.local
 .env.development
 .env.production
+.spec-workflow
+.vscode
 
 # Python 编译文件
 __pycache__/
