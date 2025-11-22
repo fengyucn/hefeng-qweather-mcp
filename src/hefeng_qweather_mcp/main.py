@@ -35,6 +35,12 @@ app = typer.Typer()
 DEFAULT_FORECAST_DAYS = 3  # 默认天气预报天数
 DEFAULT_SOLAR_HOURS = 24  # 默认太阳辐射预报小时数
 
+# POI类型常量 - 基于和风天气官方API文档
+POI_TYPES = {
+    "scenic": "景点",
+    "TSTA": "潮汐站点"
+}
+
 # 从环境变量获取API配置
 api_host = os.environ.get("HEFENG_API_HOST")
 api_key = os.environ.get("HEFENG_API_KEY")
@@ -1294,6 +1300,699 @@ def get_grid_weather_hourly(
         return None
     except Exception as e:
         logger.error(f"获取格点逐小时天气预报时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_air_quality_hourly(
+    location: str, hours: str = "24h", lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取指定地点未来24-168小时的逐小时空气质量预报数据
+
+    提供精度为1x1公里的逐小时空气质量预报，包括AQI、污染物浓度等详细信息
+
+    Args:
+        location: 必选，经纬度坐标（十进制，最多两位小数），格式: "纬度,经度"，如 "39.92,116.41"
+                  注意顺序是纬度在前，经度在后
+        hours: 可选，预报小时数，支持 "24h"（24小时，默认）、"72h"（72小时）、"168h"（168小时）
+        lang: 可选，多语言设置，默认中文 "zh"
+
+    Returns:
+        包含逐小时空气质量预报的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> get_air_quality_hourly("39.92,116.41", "24h")
+        {
+            "code": "200",
+            "updateTime": "2023-07-20T14:30+08:00",
+            "hourly": [
+                {
+                    "fxTime": "2023-07-20T15:00+08:00",
+                    "aqi": "75",
+                    "level": "2",
+                    "category": "良",
+                    "primary": "pm10",
+                    "pm10": "105",
+                    "pm2p5": "55",
+                    "no2": "42",
+                    "so2": "8",
+                    "co": "0.6",
+                    "o3": "120"
+                },
+                ...
+            ],
+            "refer": {
+                "sources": ["QWeather"],
+                "license": ["QWeather Developers License"]
+            }
+        }
+    """
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空，需为纬度,经度坐标（如 39.92,116.41）")
+        return None
+
+    loc_value = str(location).strip()
+
+    # 验证坐标格式（必须是 "纬度,经度" 格式）
+    if "," not in loc_value:
+        logger.error(
+            f"location 参数格式错误：'{loc_value}'，期望格式：纬度,经度（如 39.92,116.41）"
+        )
+        return None
+
+    try:
+        # 解析并验证经纬度坐标
+        lat_str, lon_str = [s.strip() for s in loc_value.split(",", 1)]
+        lat = float(lat_str)
+        lon = float(lon_str)
+
+        # 验证经纬度范围
+        if not (-90 <= lat <= 90):
+            logger.error(f"纬度超出有效范围 [-90, 90]：{lat}")
+            return None
+        if not (-180 <= lon <= 180):
+            logger.error(f"经度超出有效范围 [-180, 180]：{lon}")
+            return None
+
+        # 格式化坐标为两位小数
+        formatted_loc = f"{lat:.2f},{lon:.2f}"
+        logger.info(f"格式化坐标：{loc_value} → {formatted_loc}")
+
+    except Exception as e:
+        logger.error(f"无法解析坐标参数：{loc_value}，错误：{e}")
+        return None
+
+    # 验证 hours 参数
+    valid_hours = {"24h", "72h", "168h"}
+    if hours not in valid_hours:
+        logger.error(
+            f"无效的预报小时数参数: {hours}，支持的值: {', '.join(sorted(valid_hours))}"
+        )
+        return None
+
+    # API端点格式: /airquality/v1/hourly/{latitude}/{longitude}
+    lat, lon = formatted_loc.split(",")
+    url = f"https://{api_host}/airquality/v1/hourly/{lat}/{lon}"
+    params = {"hours": hours, "lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取空气质量小时预报数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        air_hourly_data = response.json()
+        logger.info(f"成功获取坐标 {formatted_loc} 的空气质量小时预报数据（{hours}）")
+        return air_hourly_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求空气质量小时预报数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取空气质量小时预报数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_air_quality_daily(
+    location: str, days: str = "3d", lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取指定地点未来最多15天的逐日空气质量预报数据
+
+    提供精度为1x1公里的逐日空气质量预报，包括AQI、污染物浓度、主要污染物等信息
+
+    Args:
+        location: 必选，经纬度坐标（十进制，最多两位小数），格式: "纬度,经度"，如 "39.92,116.41"
+                  注意顺序是纬度在前，经度在后
+        days: 可选，预报天数，支持 "3d"（3天，默认）、"7d"（7天）、"15d"（15天）
+        lang: 可选，多语言设置，默认中文 "zh"
+
+    Returns:
+        包含逐日空气质量预报的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> get_air_quality_daily("39.92,116.41", "7d")
+        {
+            "code": "200",
+            "updateTime": "2023-07-20T14:30+08:00",
+            "daily": [
+                {
+                    "fxDate": "2023-07-20",
+                    "aqi": "75",
+                    "level": "2",
+                    "category": "良",
+                    "primary": "pm10",
+                    "pm10": "105",
+                    "pm2p5": "55",
+                    "no2": "42",
+                    "so2": "8",
+                    "co": "0.6",
+                    "o3": "120"
+                },
+                ...
+            ],
+            "refer": {
+                "sources": ["QWeather"],
+                "license": ["QWeather Developers License"]
+            }
+        }
+    """
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空，需为纬度,经度坐标（如 39.92,116.41）")
+        return None
+
+    loc_value = str(location).strip()
+
+    # 验证坐标格式（必须是 "纬度,经度" 格式）
+    if "," not in loc_value:
+        logger.error(
+            f"location 参数格式错误：'{loc_value}'，期望格式：纬度,经度（如 39.92,116.41）"
+        )
+        return None
+
+    try:
+        # 解析并验证经纬度坐标
+        lat_str, lon_str = [s.strip() for s in loc_value.split(",", 1)]
+        lat = float(lat_str)
+        lon = float(lon_str)
+
+        # 验证经纬度范围
+        if not (-90 <= lat <= 90):
+            logger.error(f"纬度超出有效范围 [-90, 90]：{lat}")
+            return None
+        if not (-180 <= lon <= 180):
+            logger.error(f"经度超出有效范围 [-180, 180]：{lon}")
+            return None
+
+        # 格式化坐标为两位小数
+        formatted_loc = f"{lat:.2f},{lon:.2f}"
+        logger.info(f"格式化坐标：{loc_value} → {formatted_loc}")
+
+    except Exception as e:
+        logger.error(f"无法解析坐标参数：{loc_value}，错误：{e}")
+        return None
+
+    # 验证 days 参数
+    valid_days = {"3d", "7d", "15d"}
+    if days not in valid_days:
+        logger.error(f"无效的预报天数参数: {days}，支持的值: {', '.join(sorted(valid_days))}")
+        return None
+
+    # API端点格式: /airquality/v1/daily/{latitude}/{longitude}
+    lat, lon = formatted_loc.split(",")
+    url = f"https://{api_host}/airquality/v1/daily/{lat}/{lon}"
+    params = {"days": days, "lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取空气质量每日预报数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        air_daily_data = response.json()
+        logger.info(f"成功获取坐标 {formatted_loc} 的空气质量每日预报数据（{days}）")
+        return air_daily_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求空气质量每日预报数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取空气质量每日预报数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_air_quality_stations(
+    station_id: str, lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取指定空气质量监测站的污染物浓度数据
+
+    提供各个国家或地区监测站的污染物浓度值，监测站ID需要通过其他方式获取
+
+    Args:
+        station_id: 必选，空气质量监测站的ID，格式如 "P58911"、"P53763" 等
+                   注意：这是监测站的专用ID，不是城市的LocationID
+        lang: 可选，多语言设置，默认中文 "zh"
+
+    Returns:
+        包含监测站污染物数据的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> get_air_quality_stations("P58911")
+        {
+            "metadata": {
+                "tag": "airquality/v1/station",
+                "sources": ["QWeather"]
+            },
+            "pollutants": [
+                {
+                    "code": "co",
+                    "name": "一氧化碳",
+                    "fullName": "Carbon Monoxide",
+                    "concentration": {
+                        "value": "0.6",
+                        "unit": "mg/m³"
+                    }
+                }
+            ]
+        }
+    """
+    if not station_id or not str(station_id).strip():
+        logger.error("station_id 参数不能为空，需为空气质量监测站ID（如 P58911）")
+        return None
+
+    station_value = str(station_id).strip()
+
+    # 验证监测站ID格式（应该以P开头，后跟数字）
+    if not station_value.startswith('P') or not station_value[1:].isdigit():
+        logger.error(f"监测站ID格式可能不正确: {station_value}，期望格式: P58911")
+        # 这里不返回None，因为可能有其他格式的监测站ID
+
+    # 根据官方文档，API端点格式: /airquality/v1/station/{station_id}
+    url = f"https://{api_host}/airquality/v1/station/{station_value}"
+    params = {"lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取空气质量监测站数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        stations_data = response.json()
+        logger.info(f"成功获取监测站 '{station_value}' 的污染物浓度数据")
+        return stations_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求空气质量监测站数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取空气质量监测站数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_top_cities(
+    number: int = 10, city_type: str = "cn", lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    获取和风天气提供的热门城市列表
+
+    提供快速访问常用城市的功能，支持不同区域的热门城市查询
+
+    Args:
+        number: 可选，返回结果的数量，默认10，建议范围1-50
+        city_type: 可选，返回城市类型，支持：
+                   - "cn": 中国热门城市（默认）
+                   - "world": 世界热门城市
+                   - "overseas": 海外热门城市
+        lang: 可选，多语言设置，默认中文 "zh"
+
+    Returns:
+        包含热门城市列表的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> get_top_cities(10, "cn")
+        {
+            "code": "200",
+            "topCity": [
+                {
+                    "id": "101010100",
+                    "name": "北京",
+                    "country": "CN",
+                    "path": "北京,北京,中国",
+                    "timezone": "Asia/Shanghai",
+                    "timezoneOffset": "+08:00"
+                },
+                {
+                    "id": "101020100",
+                    "name": "上海",
+                    "country": "CN",
+                    "path": "上海,上海,中国",
+                    "timezone": "Asia/Shanghai",
+                    "timezoneOffset": "+08:00"
+                },
+                ...
+            ]
+        }
+    """
+    # 验证 number 参数
+    if not isinstance(number, int) or number < 1 or number > 100:
+        logger.error(f"无效的 number 参数: {number}，支持的范围为 1-100 的整数")
+        return None
+
+    # 验证 city_type 参数
+    valid_types = {"cn", "world", "overseas"}
+    if city_type not in valid_types:
+        logger.error(f"无效的 city_type 参数: {city_type}，支持的值: {', '.join(sorted(valid_types))}")
+        return None
+
+    url = f"https://{api_host}/geo/v2/city/top"
+    params = {"number": str(number), "type": city_type, "lang": lang}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取热门城市数据失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        top_cities_data = response.json()
+        logger.info(f"成功获取热门城市数据，类型: {city_type}，数量: {number}")
+        return top_cities_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求热门城市数据时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取热门城市数据时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def search_poi(
+    location: str,
+    keyword: str,
+    poi_type: str,
+    city: Optional[str] = None,
+    radius: int = 5000,
+    page: int = 1,
+    lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    根据关键词搜索兴趣点(Point of Interest)
+
+    支持全球POI搜索，包括地标、建筑物、景点等多种类型的兴趣点
+
+    Args:
+        location: 必选，搜索地区的经纬度坐标或LocationID，格式: "116.41,39.92" 或 "101010100"
+                  也支持传入城市名（会尝试解析为经纬度）
+        keyword: 必选，搜索关键词，如 "故宫"、"博物馆"、"景点" 等
+        poi_type: 必选，POI类型，支持：
+                  - "scenic": 景点
+                  - "TSTA": 潮汐站点
+        city: 可选，限定搜索城市，支持LocationID或城市名称
+        radius: 可选，搜索半径，单位: 米，默认5000米，范围100-50000
+        page: 可选，页码，默认1
+        lang: 可选，多语言设置，默认中文 "zh"
+
+    Returns:
+        包含POI搜索结果的 JSON 数据，如果失败返回 None
+
+    Examples:
+        >>> search_poi("北京", "博物馆", "scenic", radius=10000)
+        {
+            "code": "200",
+            "poi": [
+                {
+                    "id": "B000A81UYB",
+                    "name": "故宫博物院",
+                    "country": "CN",
+                    "path": "北京市东城区景山前街4号",
+                    "type": "风景名胜",
+                    "typecode": "1001",
+                    "address": "北京市东城区景山前街4号",
+                    "location": "116.39,39.92",
+                    "admindistrict": "东城区",
+                    "city": "北京",
+                    "province": "北京"
+                },
+                ...
+            ]
+        }
+    """
+    # 验证必需参数
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空")
+        return None
+
+    if not keyword or not str(keyword).strip():
+        logger.error("keyword 参数不能为空")
+        return None
+
+    # 验证POI类型
+    if poi_type not in POI_TYPES:
+        logger.error(f"无效的POI类型: {poi_type}，支持的类型: {', '.join(POI_TYPES.keys())}")
+        return None
+
+    # 验证radius参数
+    if not isinstance(radius, int) or radius < 100 or radius > 50000:
+        logger.error(f"无效的 radius 参数: {radius}，支持的范围为 100-50000 米")
+        return None
+
+    # 验证page参数
+    if not isinstance(page, int) or page < 1:
+        logger.error(f"无效的 page 参数: {page}，必须为大于0的整数")
+        return None
+
+    # 处理location参数
+    loc_value = str(location).strip()
+
+    if "," in loc_value:
+        # 经纬度坐标处理
+        try:
+            parts = [s.strip() for s in loc_value.split(",", 1)]
+            if len(parts) != 2:
+                logger.error(f"坐标格式错误: {loc_value}，期望格式: 经度,纬度")
+                return None
+
+            lon = float(parts[0])
+            lat = float(parts[1])
+
+            # 验证经纬度范围
+            if not (-180 <= lon <= 180):
+                logger.error(f"经度超出有效范围 [-180, 180]: {lon}")
+                return None
+            if not (-90 <= lat <= 90):
+                logger.error(f"纬度超出有效范围 [-90, 90]: {lat}")
+                return None
+
+            # 格式化坐标
+            formatted_loc = f"{lon:.2f},{lat:.2f}"
+            logger.info(f"使用坐标搜索: {formatted_loc}")
+
+        except ValueError:
+            logger.error(f"无法解析坐标: {loc_value}")
+            return None
+    elif loc_value.isdigit():
+        # LocationID处理
+        formatted_loc = loc_value
+        logger.info(f"使用LocationID搜索: {formatted_loc}")
+    else:
+        # 城市名称处理
+        location_id = _get_city_location(loc_value)
+        if not location_id:
+            logger.error(f"无法获取城市 '{loc_value}' 的LocationID")
+            return None
+        formatted_loc = location_id
+        logger.info(f"城市 '{loc_value}' 解析为LocationID: {formatted_loc}")
+
+    url = f"https://{api_host}/geo/v2/poi/lookup"
+    params = {
+        "location": formatted_loc,
+        "keyword": keyword.strip(),
+        "type": poi_type,
+        "radius": str(radius),
+        "page": str(page),
+        "lang": lang
+    }
+
+    # 如果指定了城市，添加city参数
+    if city and city.strip():
+        if "," in city.strip():
+            # 如果city也是坐标，需要转换为LocationID
+            city_loc = _get_city_location(city.strip())
+            if city_loc:
+                params["city"] = city_loc
+        elif city.strip().isdigit():
+            # 如果是LocationID
+            params["city"] = city.strip()
+        else:
+            # 如果是城市名，获取LocationID
+            city_location_id = _get_city_location(city.strip())
+            if city_location_id:
+                params["city"] = city_location_id
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"POI搜索失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        poi_data = response.json()
+        logger.info(f"成功搜索POI，关键词: '{keyword}'，类型: {poi_type}，位置: {loc_value}")
+        return poi_data
+
+    except httpx.RequestError as e:
+        logger.error(f"POI搜索请求时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"POI搜索时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def search_poi_range(
+    location: str,
+    poi_type: str,
+    radius: int = 5,
+    city: Optional[str] = None,
+    page: int = 1,
+    lang: str = "zh"
+) -> Optional[Dict[str, Any]]:
+    """
+    在指定坐标点周围的圆形区域内搜索POI
+
+    支持按距离排序的POI范围搜索，适合查找附近的兴趣点
+
+    Args:
+        location: 必选，中心点的经纬度坐标，格式: "116.41,39.92"（经度,纬度）
+                  注意：此API强制要求使用经纬度坐标，不支持城市名称
+        poi_type: 必选，POI类型，支持：
+                  - "scenic": 景点
+                  - "TSTA": 潮汐站点
+        radius: 可选，搜索半径，单位：公里，范围1-50，默认5公里
+        city: 可选，限定搜索城市，支持LocationID或城市名称
+        page: 可选，页码，默认1
+        lang: 可选，多语言设置，默认中文 "zh"
+
+    Returns:
+        包含POI范围搜索结果的 JSON 数据，包含距离信息，如果失败返回 None
+
+    Examples:
+        >>> search_poi_range("116.41,39.92", "scenic", 2)
+        {
+            "code": "200",
+            "poi": [
+                {
+                    "id": "B000A81UYB",
+                    "name": "全聚德烤鸭店",
+                    "country": "CN",
+                    "path": "北京市东城区前门大街30号",
+                    "type": "餐饮服务",
+                    "typecode": "0501",
+                    "address": "北京市东城区前门大街30号",
+                    "location": "116.39,39.92",
+                    "distance": "1200",
+                    "admindistrict": "东城区",
+                    "city": "北京",
+                    "province": "北京"
+                },
+                ...
+            ]
+        }
+    """
+    # 验证必需参数
+    if not location or not str(location).strip():
+        logger.error("location 参数不能为空，需为经度,纬度坐标（如 116.41,39.92）")
+        return None
+
+    if not isinstance(page, int) or page < 1:
+        logger.error(f"无效的 page 参数: {page}，必须为大于0的整数")
+        return None
+
+    # 验证radius参数（范围1-50公里）
+    if not isinstance(radius, int) or radius < 1 or radius > 50:
+        logger.error(f"无效的 radius 参数: {radius}，支持的范围为 1-50 公里")
+        return None
+
+    # 使用整数radius值
+    radius_int = radius
+
+    # 验证POI类型
+    if poi_type not in POI_TYPES:
+        logger.error(f"无效的POI类型: {poi_type}，支持的类型: {', '.join(POI_TYPES.keys())}")
+        return None
+
+    loc_value = str(location).strip()
+
+    # 强制要求坐标格式
+    if "," not in loc_value:
+        logger.error(
+            f"location 参数格式错误：'{loc_value}'，POI范围搜索仅支持经纬度坐标，期望格式：经度,纬度（如 116.41,39.92）"
+        )
+        return None
+
+    try:
+        # 解析并验证经纬度坐标
+        parts = [s.strip() for s in loc_value.split(",", 1)]
+        if len(parts) != 2:
+            logger.error(f"坐标格式错误: {loc_value}，期望格式: 经度,纬度")
+            return None
+
+        lon = float(parts[0])
+        lat = float(parts[1])
+
+        # 验证经纬度范围
+        if not (-180 <= lon <= 180):
+            logger.error(f"经度超出有效范围 [-180, 180]: {lon}")
+            return None
+        if not (-90 <= lat <= 90):
+            logger.error(f"纬度超出有效范围 [-90, 90]: {lat}")
+            return None
+
+        # 格式化坐标为两位小数
+        formatted_loc = f"{lon:.2f},{lat:.2f}"
+        logger.info(f"使用坐标范围搜索：{loc_value} → {formatted_loc}")
+
+    except ValueError as e:
+        logger.error(f"无法解析坐标参数：{loc_value}，错误：{e}")
+        return None
+
+    url = f"https://{api_host}/geo/v2/poi/range"
+    params = {
+        "location": formatted_loc,
+        "type": poi_type,
+        "radius": str(radius_int),  # 转换为整数
+        "page": str(page),
+        "lang": lang
+    }
+
+    # 如果指定了城市，添加city参数
+    if city and city.strip():
+        if city.strip().isdigit():
+            # 如果是LocationID
+            params["city"] = city.strip()
+        else:
+            # 如果是城市名，获取LocationID
+            city_location_id = _get_city_location(city.strip())
+            if city_location_id:
+                params["city"] = city_location_id
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"POI范围搜索失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        poi_range_data = response.json()
+        logger.info(f"成功搜索POI范围，中心点: {formatted_loc}，类型: {poi_type}，半径: {radius_int}公里")
+        return poi_range_data
+
+    except httpx.RequestError as e:
+        logger.error(f"POI范围搜索请求时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"POI范围搜索时发生未知错误: {e}")
         return None
 
 
