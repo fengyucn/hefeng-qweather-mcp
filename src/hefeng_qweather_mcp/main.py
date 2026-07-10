@@ -36,10 +36,7 @@ DEFAULT_FORECAST_DAYS = 3  # 默认天气预报天数
 DEFAULT_SOLAR_HOURS = 24  # 默认太阳辐射预报小时数
 
 # POI类型常量 - 基于和风天气官方API文档
-POI_TYPES = {
-    "scenic": "景点",
-    "TSTA": "潮汐站点"
-}
+POI_TYPES = {"scenic": "景点", "TSTA": "潮汐站点"}
 
 # 从环境变量获取API配置
 api_host = os.environ.get("HEFENG_API_HOST")
@@ -1500,7 +1497,9 @@ def get_air_quality_daily(
     # 验证 days 参数
     valid_days = {"3d", "7d", "15d"}
     if days not in valid_days:
-        logger.error(f"无效的预报天数参数: {days}，支持的值: {', '.join(sorted(valid_days))}")
+        logger.error(
+            f"无效的预报天数参数: {days}，支持的值: {', '.join(sorted(valid_days))}"
+        )
         return None
 
     # API端点格式: /airquality/v1/daily/{latitude}/{longitude}
@@ -1573,7 +1572,7 @@ def get_air_quality_stations(
     station_value = str(station_id).strip()
 
     # 验证监测站ID格式（应该以P开头，后跟数字）
-    if not station_value.startswith('P') or not station_value[1:].isdigit():
+    if not station_value.startswith("P") or not station_value[1:].isdigit():
         logger.error(f"监测站ID格式可能不正确: {station_value}，期望格式: P58911")
         # 这里不返回None，因为可能有其他格式的监测站ID
 
@@ -1655,7 +1654,9 @@ def get_top_cities(
     # 验证 city_type 参数
     valid_types = {"cn", "world", "overseas"}
     if city_type not in valid_types:
-        logger.error(f"无效的 city_type 参数: {city_type}，支持的值: {', '.join(sorted(valid_types))}")
+        logger.error(
+            f"无效的 city_type 参数: {city_type}，支持的值: {', '.join(sorted(valid_types))}"
+        )
         return None
 
     url = f"https://{api_host}/geo/v2/city/top"
@@ -1690,7 +1691,7 @@ def search_poi(
     city: Optional[str] = None,
     radius: int = 5000,
     page: int = 1,
-    lang: str = "zh"
+    lang: str = "zh",
 ) -> Optional[Dict[str, Any]]:
     """
     根据关键词搜索兴趣点(Point of Interest)
@@ -1745,7 +1746,9 @@ def search_poi(
 
     # 验证POI类型
     if poi_type not in POI_TYPES:
-        logger.error(f"无效的POI类型: {poi_type}，支持的类型: {', '.join(POI_TYPES.keys())}")
+        logger.error(
+            f"无效的POI类型: {poi_type}，支持的类型: {', '.join(POI_TYPES.keys())}"
+        )
         return None
 
     # 验证radius参数
@@ -1807,7 +1810,7 @@ def search_poi(
         "type": poi_type,
         "radius": str(radius),
         "page": str(page),
-        "lang": lang
+        "lang": lang,
     }
 
     # 如果指定了城市，添加city参数
@@ -1836,7 +1839,9 @@ def search_poi(
             return None
 
         poi_data = response.json()
-        logger.info(f"成功搜索POI，关键词: '{keyword}'，类型: {poi_type}，位置: {loc_value}")
+        logger.info(
+            f"成功搜索POI，关键词: '{keyword}'，类型: {poi_type}，位置: {loc_value}"
+        )
         return poi_data
 
     except httpx.RequestError as e:
@@ -1854,7 +1859,7 @@ def search_poi_range(
     radius: int = 5,
     city: Optional[str] = None,
     page: int = 1,
-    lang: str = "zh"
+    lang: str = "zh",
 ) -> Optional[Dict[str, Any]]:
     """
     在指定坐标点周围的圆形区域内搜索POI
@@ -1917,7 +1922,9 @@ def search_poi_range(
 
     # 验证POI类型
     if poi_type not in POI_TYPES:
-        logger.error(f"无效的POI类型: {poi_type}，支持的类型: {', '.join(POI_TYPES.keys())}")
+        logger.error(
+            f"无效的POI类型: {poi_type}，支持的类型: {', '.join(POI_TYPES.keys())}"
+        )
         return None
 
     loc_value = str(location).strip()
@@ -1961,7 +1968,7 @@ def search_poi_range(
         "type": poi_type,
         "radius": str(radius_int),  # 转换为整数
         "page": str(page),
-        "lang": lang
+        "lang": lang,
     }
 
     # 如果指定了城市，添加city参数
@@ -1985,7 +1992,9 @@ def search_poi_range(
             return None
 
         poi_range_data = response.json()
-        logger.info(f"成功搜索POI范围，中心点: {formatted_loc}，类型: {poi_type}，半径: {radius_int}公里")
+        logger.info(
+            f"成功搜索POI范围，中心点: {formatted_loc}，类型: {poi_type}，半径: {radius_int}公里"
+        )
         return poi_range_data
 
     except httpx.RequestError as e:
@@ -1993,6 +2002,208 @@ def search_poi_range(
         return None
     except Exception as e:
         logger.error(f"POI范围搜索时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_storm_list(year: str, basin: str = "NP") -> Optional[Dict[str, Any]]:
+    """
+    获取指定流域和年份的台风列表
+
+    提供全球主要海洋流域最近2年的台风列表。目前仅支持中国沿海地区（西北太平洋，basin=NP）。
+
+    Args:
+        year: 需要查询的年份，仅支持本年度和上一年度，如 '2020'、'2019'
+        basin: 台风所在流域，当前仅支持 'NP'（西北太平洋），默认为 'NP'
+               可选流域（暂仅NP可用）：
+               AL 北大西洋, EP 东太平洋, NP 西北太平洋,
+               SP 西南太平洋, NI 北印度洋, SI 南印度洋
+
+    Returns:
+        包含台风列表的JSON数据，如果查询失败则返回None
+
+    Examples:
+        >>> get_storm_list("2020")
+        {
+            "code": "200",
+            "updateTime": "2020-08-25T14:30+08:00",
+            "storm": [
+                {
+                    "id": "NP_2008",
+                    "name": "巴威",
+                    "basin": "NP",
+                    "year": "2020",
+                    "isActive": "0"
+                }
+            ]
+        }
+    """
+    if not year or not year.strip():
+        logger.error("年份参数不能为空")
+        return None
+
+    year = year.strip()
+
+    if not year.isdigit():
+        logger.error(f"无效的年份参数: {year}，应为数字，如 2020")
+        return None
+
+    if not basin or not basin.strip():
+        logger.error("流域参数不能为空")
+        return None
+
+    basin = basin.strip().upper()
+
+    if basin != "NP":
+        logger.error(f"无效的流域参数: {basin}，当前仅支持 NP（西北太平洋）")
+        return None
+
+    url = f"https://{api_host}/v7/tropical/storm-list"
+    params = {"basin": basin, "year": year}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取台风列表失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        storm_list_data = response.json()
+        logger.info(f"成功获取流域 '{basin}' {year}年 的台风列表数据")
+        return storm_list_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求台风列表时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取台风列表时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_storm_track(stormid: str) -> Optional[Dict[str, Any]]:
+    """
+    获取指定台风的实况和路径
+
+    提供全球主要海洋流域的台风实时位置、等级、气压、风速以及活跃台风的轨迹路径。
+
+    Args:
+        stormid: 需要查询的台风ID，可通过 get_storm_list 获取，如 'NP2018'
+
+    Returns:
+        包含台风实况（now）和历史轨迹（track）的JSON数据，如果查询失败则返回None。
+        如台风已结束，now 字段可能为 null。
+
+    Examples:
+        >>> get_storm_track("NP2018")
+        {
+            "code": "200",
+            "isActive": "1",
+            "now": {
+                "lat": "28.8",
+                "lon": "125.0",
+                "type": "TY",
+                "pressure": "965",
+                "windSpeed": "40",
+                "moveSpeed": "20",
+                "moveDir": "NW"
+            },
+            "track": [...]
+        }
+    """
+    if not stormid or not stormid.strip():
+        logger.error("台风ID不能为空")
+        return None
+
+    stormid = stormid.strip()
+
+    url = f"https://{api_host}/v7/tropical/storm-track"
+    params = {"stormid": stormid}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取台风路径失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        storm_track_data = response.json()
+        logger.info(f"成功获取台风 '{stormid}' 的实况和路径数据")
+        return storm_track_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求台风路径时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取台风路径时发生未知错误: {e}")
+        return None
+
+
+@mcp.tool()
+def get_storm_forecast(stormid: str) -> Optional[Dict[str, Any]]:
+    """
+    获取指定台风的预报路径
+
+    提供全球主要海洋流域的台风预测位置、等级、气压、风速等。
+
+    如果查询的台风已经结束，返回的预报数据可能为空，建议先通过 get_storm_list
+    获取台风的活跃状态。
+
+    Args:
+        stormid: 需要查询的台风ID，可通过 get_storm_list 获取，如 'NP2018'
+
+    Returns:
+        包含台风预报数据列表（forecast）的JSON数据，如果查询失败则返回None
+
+    Examples:
+        >>> get_storm_forecast("NP2018")
+        {
+            "code": "200",
+            "forecast": [
+                {
+                    "fxTime": "2020-08-25T14:00+08:00",
+                    "lat": "29.5",
+                    "lon": "124.2",
+                    "type": "TY",
+                    "pressure": "960",
+                    "windSpeed": "42",
+                    "moveSpeed": "22",
+                    "moveDir": "NW"
+                }
+            ]
+        }
+    """
+    if not stormid or not stormid.strip():
+        logger.error("台风ID不能为空")
+        return None
+
+    stormid = stormid.strip()
+
+    url = f"https://{api_host}/v7/tropical/storm-forecast"
+    params = {"stormid": stormid}
+
+    try:
+        response = httpx.get(url, headers=auth_header, params=params)
+
+        if response.status_code != 200:
+            logger.error(
+                f"获取台风预报失败 - 状态码: {response.status_code}, 响应: {response.text}"
+            )
+            return None
+
+        storm_forecast_data = response.json()
+        logger.info(f"成功获取台风 '{stormid}' 的预报路径数据")
+        return storm_forecast_data
+
+    except httpx.RequestError as e:
+        logger.error(f"请求台风预报时发生网络错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"获取台风预报时发生未知错误: {e}")
         return None
 
 

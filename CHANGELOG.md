@@ -5,6 +5,27 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2026-07-10
+
+### 新增功能
+- ✨ 新增热带气旋 (台风) API 服务模块
+  - `get_storm_list` - 台风列表查询（指定流域和年份，当前支持 NP 西北太平洋）
+  - `get_storm_track` - 台风实况和路径（实时位置、等级、气压、风速、历史轨迹）
+  - `get_storm_forecast` - 台风预报路径（预测位置、等级、气压、风速）
+
+### 功能改进
+- 🔧 台风列表支持流域参数验证（当前仅 NP 可用）
+- 🔧 台风路径支持活跃台风状态判断（isActive）
+- 🔧 统一参数验证机制和错误处理
+- 🔧 完善中文文档字符串和参数说明
+
+### 技术细节
+- 📊 台风列表端点: `/v7/tropical/storm-list`
+- 📊 台风实况端点: `/v7/tropical/storm-track`
+- 📊 台风预报端点: `/v7/tropical/storm-forecast`
+- 📊 支持全球主要海洋流域（当前仅 NP 可用）
+- 📊 台风列表支持本年度和上一年度查询
+
 ## [0.5.0] - 2025-11-22
 
 ### 新增功能
