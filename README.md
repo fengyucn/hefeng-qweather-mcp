@@ -59,6 +59,17 @@ HEFENG_API_KEY=你的API KEY
    # 推荐使用 API KEY 认证方式
    ```
 
+   服务启动时会按以下优先级自动查找 `.env` 配置文件（已加载的变量不会被后续文件覆盖）：
+
+   | 优先级 | 路径 | 适用场景 |
+   |--------|------|----------|
+   | 1 | 当前工作目录下的 `.env` | 本地项目内配置 |
+   | 2 | 项目根目录下的 `.env` | 源码方式运行时 |
+   | 3 | `~/.config/qweather/.env` | 用户级配置（pip/uv 安装后推荐） |
+
+   > 用户级路径遵循 XDG 规范：若设置了 `XDG_CONFIG_HOME` 环境变量，则查找 `$XDG_CONFIG_HOME/qweather/.env`。
+
+
 2. **启动服务器**
    ```bash
    # STDIO 模式（推荐用于本地开发）
@@ -399,6 +410,8 @@ HEFENG_API_HOST=你的API主机地址
 HEFENG_API_KEY=你的API KEY
 ```
 
+> 通过 pip/uv 安装后，也可以将 `.env` 放在 `~/.config/qweather/` 目录作为用户级配置（详见「快速开始」中的配置查找优先级）。
+
 #### 方式二：JWT 数字签名认证（备用）
 
 如果需要使用 JWT 认证：
@@ -433,7 +446,11 @@ HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
 
 ## 版本历史
 
-### v1.1.0 (最新)
+### v1.2.0 (最新)
+
+- ✅ 新增用户级配置文件支持：`~/.config/qweather/.env`（XDG 规范，可用 `XDG_CONFIG_HOME` 覆盖）
+
+### v1.1.0
 
 - ✅ 新增热带气旋 (台风) API 服务模块
 - ✅ 新增 `get_storm_list`: 台风列表查询（支持指定流域和年份）

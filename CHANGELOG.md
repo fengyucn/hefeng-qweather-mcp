@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-09-25
+
+### 功能改进
+- 🔧 新增用户级配置文件支持：`~/.config/qweather/.env`（遵循 XDG 规范，可用 `XDG_CONFIG_HOME` 覆盖）
+- 🔧 配置加载优先级：当前工作目录 > 项目根目录 > 用户级配置目录（先加载者优先，不覆盖已存在的变量）
+
 ## [1.1.0] - 2026-07-10
 
 ### 新增功能
