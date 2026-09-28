@@ -22,6 +22,9 @@
 
 ## 安装
 
+> **需要 MCP Python SDK 2.x。** 本项目 v2.0.0 起要求 `mcp[cli]>=2.0.0`；
+> 若要继续使用 SDK 1.x，请安装 `hefeng-qweather-mcp==1.2.0`。
+
 ```bash
 uv tool install hefeng-qweather-mcp
 ```
@@ -90,6 +93,9 @@ hefeng-qweather-mcp http
 ```
 
 服务器启动后将在 `http://127.0.0.1:8000` 运行，MCP 端点为 `http://127.0.0.1:8000/mcp`。
+
+可用 `HEFENG_MCP_HOST` / `HEFENG_MCP_PORT` 环境变量修改监听地址，例如
+`HEFENG_MCP_HOST=0.0.0.0 HEFENG_MCP_PORT=9000 hefeng-qweather-mcp http`。
 
 **VS Code 配置：**
 ```json
@@ -446,7 +452,19 @@ HEFENG_PRIVATE_KEY_PATH=./ed25519-private.pem
 
 ## 版本历史
 
-### v1.2.0 (最新)
+### v2.0.0 (最新)
+
+- ⚠️ **破坏性变更**：升级到 MCP Python SDK 2.x
+  - `FastMCP` 已更名为 `MCPServer`（`mcp.server.mcpserver`），导入路径同步修改
+  - 依赖由 `mcp[cli]>=1.10.0` 改为 `mcp[cli]>=2.0.0`
+  - HTTP 传输的监听地址改由 `run()` 传入；新增 `HEFENG_MCP_HOST` / `HEFENG_MCP_PORT`
+    环境变量（默认 `127.0.0.1:8000`，与 v1 行为一致）
+  - 服务端现在会正确上报版本号（v1 下为 `1.30.0` 之类的 SDK 内部值）
+- ✅ 保留全部 23 个工具，参数与返回结构未变
+
+> 如果你需要继续使用 MCP SDK 1.x，请锁定 `hefeng-qweather-mcp==1.2.0`。
+
+### v1.2.0
 
 - ✅ 新增用户级配置文件支持：`~/.config/qweather/.env`（XDG 规范，可用 `XDG_CONFIG_HOME` 覆盖）
 

@@ -1,6 +1,6 @@
 [project]
 name = "hefeng-qweather-mcp"
-version = "1.2.0"
+version = "2.0.0"
 description = "和风天气 MCP 服务 - 基于 Model Context Protocol 的天气数据查询服务"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,7 +23,7 @@ requires-python = ">=3.11"
 dependencies = [
     "cryptography>=41.0.0",
     "httpx>=0.25.0",
-    "mcp[cli]>=1.10.0",
+    "mcp[cli]>=2.0.0",
     "pyjwt>=2.8.0",
     "python-dotenv>=1.0.0",
     "typer>=0.12.0",

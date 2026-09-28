@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.0] - 2026-09-28
+
+### ⚠️ 破坏性变更
+- 升级至 MCP Python SDK 2.x
+  - `FastMCP` → `MCPServer`，导入改为 `from mcp.server.mcpserver import MCPServer`
+  - 依赖约束 `mcp[cli]>=1.10.0` → `mcp[cli]>=2.0.0`
+  - HTTP 监听地址从构造函数移到 `run()`；新增 `HEFENG_MCP_HOST` / `HEFENG_MCP_PORT`
+    环境变量（默认 `127.0.0.1:8000`）
+
+### 修复
+- 🐛 修复依赖未设上界导致 `uvx` / 非锁定安装时拉到 mcp 2.x 后
+  报 `No module named 'mcp.server.fastmcp'` 而无法启动的问题
+- 🐛 服务端版本号现在正确上报（此前 v1 会回显 SDK 内部版本 `1.30.0`）
+
+### 兼容性
+- 23 个工具的名称、参数与返回结构不变
+- 需要继续使用 SDK 1.x 的用户可锁定 `hefeng-qweather-mcp==1.2.0`
+
 ## [1.2.0] - 2026-09-25
 
 ### 功能改进

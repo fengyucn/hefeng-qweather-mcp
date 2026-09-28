@@ -5,7 +5,7 @@ License: MIT
 """
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from dotenv import load_dotenv
 import logging
 import os
@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from typing import Optional, Dict, Any
 import typer
+
+from hefeng_qweather_mcp import __version__ as _pkg_version
 
 # 配置日志
 logging.basicConfig(
@@ -34,13 +36,21 @@ load_dotenv(
 )  # 用户级配置目录
 
 # 初始化MCP服务
-mcp = FastMCP("hefeng_qweather_mcp")
+# MCP Python SDK 2.x：FastMCP 更名为 MCPServer（mcp.server.mcpserver）。
+# 与 v1 的 FastMCP 不同，2.x 的构造函数不再接收 host/port 等传输层参数，
+# 它们改为在 run()/run_stdio_async()/run_streamable_http_async() 时传入。
+# 显式传入 version，避免 2.x 默认上报空版本号。
+mcp = MCPServer("hefeng_qweather_mcp", version=_pkg_version)
 app = typer.Typer()
 
 
 # API配置常量
 DEFAULT_FORECAST_DAYS = 3  # 默认天气预报天数
 DEFAULT_SOLAR_HOURS = 24  # 默认太阳辐射预报小时数
+
+# HTTP 传输监听地址，与 v1 版 FastMCP 构造函数的默认值保持一致
+_MCP_HTTP_HOST = os.environ.get("HEFENG_MCP_HOST", "127.0.0.1")
+_MCP_HTTP_PORT = int(os.environ.get("HEFENG_MCP_PORT", "8000"))
 
 # POI类型常量 - 基于和风天气官方API文档
 POI_TYPES = {"scenic": "景点", "TSTA": "潮汐站点"}
@@ -2230,7 +2240,11 @@ def http() -> None:
             logger.info(f"项目ID: {project_id}")
             logger.info(f"密钥ID: {key_id}")
         logger.info("服务启动成功，等待连接...")
-        mcp.run(transport="streamable-http")
+        mcp.run(
+            transport="streamable-http",
+            host=_MCP_HTTP_HOST,
+            port=_MCP_HTTP_PORT,
+        )
     except KeyboardInterrupt:
         logger.info("服务被用户中断")
     except Exception as e:
